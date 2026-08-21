@@ -1,9 +1,5 @@
 # 311背书助手
 
-直接部署 GitHub Pages。
-
 - 已内置 6 本资料 OCR 索引，共 1642 页。
 - 问答、关联搜索、匹配度、AI解释、背诵填空、错题本。
 - 无 API、无运行时 AI。
-
-部署：仓库 Settings → Pages → Deploy from a branch → main / root。
