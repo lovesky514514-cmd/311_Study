@@ -1,6 +1,4 @@
-# 311 背书助手 V0.4
-
-纯静态 GitHub Pages 版本。
+# 311 背书助手
 
 ## 默认模式
 - 0 API
@@ -33,7 +31,3 @@ AI 使用 Puter.js：
 4. 资料外问题是否被拦截
 5. localStorage 是否可用
 6. AI 开关逻辑
-
-## GitHub Pages
-上传本目录所有文件到仓库根目录：
-Settings → Pages → Deploy from a branch → main / root
