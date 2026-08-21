@@ -1,0 +1,17 @@
+{
+  "version": "1.2.0",
+  "library_pages": 1642,
+  "knowledge_points": 69,
+  "node_syntax": "PASS",
+  "http": {
+    "index.html": 200,
+    "style.css": 200,
+    "app.js": 200,
+    "data/library.json": 200,
+    "data/knowledge.json": 200,
+    "favicon.ico": 200,
+    "icons/icon-192.png": 200
+  },
+  "icon": "PASS",
+  "zip_bytes": 2697986
+}

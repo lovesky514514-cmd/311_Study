@@ -5,11 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
 <title>311背书助手</title>
-<link rel="stylesheet" href="./style.css">
+<link rel="icon" href="./favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="manifest" href="./manifest.webmanifest">
+<link rel="stylesheet" href="./style.css?v=1.2.0">
 </head>
 <body>
-<header>
+<header class="fixed-header">
   <div class="bar">
     <b>311背书助手</b>
     <nav>
@@ -26,6 +29,11 @@
       <textarea id="question" rows="2" placeholder="输入问题"></textarea>
       <button id="askBtn">搜索</button>
     </div>
+
+    <section class="random-kp">
+      <div class="random-head"><b>随机知识点</b><button id="refreshKnowledge" class="link">刷新</button></div>
+      <div id="knowledgeList" class="knowledge-list"></div>
+    </section>
 
     <section id="answerBox" class="answer hidden">
       <div class="answer-title">回答</div>
@@ -44,7 +52,7 @@
 
   <section id="view-recall" class="view">
     <div class="simple-head"><b>背诵</b><button id="randomRecall" class="link">随机</button></div>
-    <div id="recallEmpty" class="empty">暂无内容</div>
+    <div id="recallEmpty" class="empty hidden">暂无内容</div>
     <article id="recallCard" class="recall hidden">
       <div id="recallSource" class="meta"></div>
       <div id="recallPrompt" class="prompt"></div>
@@ -53,7 +61,7 @@
         <button id="checkRecall" class="primary">检查</button>
         <button id="showRecall" class="minor">答案</button>
         <button id="recallWrong" class="minor">加入错题</button>
-        <button id="deleteRecall" class="link danger">删除</button>
+        <button id="deleteRecall" class="link danger">下一题</button>
       </div>
       <div id="recallFeedback" class="feedback hidden"></div>
       <div id="recallAnswer" class="source hidden"></div>
@@ -68,23 +76,7 @@
   </section>
 </main>
 
-<dialog id="recallDialog">
-  <form method="dialog" class="dialog">
-    <b>加入背诵</b>
-    <label>挖空词<input id="recallWords" placeholder="多个词用逗号分隔"></label>
-    <div class="dialog-actions"><button value="cancel" class="minor">取消</button><button id="saveRecall" value="default" class="primary">保存</button></div>
-  </form>
-</dialog>
-
-<dialog id="wrongDialog">
-  <form method="dialog" class="dialog">
-    <b>加入错题</b>
-    <label>备注<textarea id="wrongNote" rows="3" placeholder="可不填"></textarea></label>
-    <div class="dialog-actions"><button value="cancel" class="minor">取消</button><button id="saveWrong" value="default" class="primary">保存</button></div>
-  </form>
-</dialog>
-
 <div id="toast" class="toast"></div>
-<script src="./app.js"></script>
+<script src="./app.js?v=1.2.0"></script>
 </body>
 </html>
