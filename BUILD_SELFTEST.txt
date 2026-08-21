@@ -1,0 +1,21 @@
+BUILD SELF TEST: 18/18 PASS
+PASS | 六艺教育 -> zj-007 (54) | expected zj-007
+PASS | 西周家庭教育 -> zj-006 (59) | expected zj-006
+PASS | 学在官府 -> zj-004 (54) | expected zj-004
+PASS | 稷下学宫 -> zj-009 (54) | expected zj-009
+PASS | 私人讲学兴起 -> zj-008 (54) | expected zj-008
+PASS | 皮亚杰四阶段 -> jx-003 (17) | expected jx-003
+PASS | 最近发展区 -> jx-004 (34) | expected jx-004
+PASS | 埃里克森八阶段 -> jx-005 (24) | expected jx-005
+PASS | 科尔伯格三水平六阶段 -> jx-006 (24) | expected jx-006
+PASS | 生态系统理论 -> jx-007 (34) | expected jx-007
+PASS | 第一章知识点一第2题 -> q-zj-002 (30) | expected q-zj-002
+PASS | 家庭教育第1题 -> q-zj-004 (27) | expected q-zj-004
+PASS | 六艺第1题 -> q-zj-005 (27) | expected q-zj-005
+PASS | OOD 量子色动力学三圈修正 | max score 0
+PASS | OOD Python装饰器 | max score 0
+PASS | OOD 美国总统是谁 | max score 0
+PASS | audited answers C/D/C/D/A
+PASS | app.js Node syntax
+
+Puter live AI: NOT RUN (requires interactive user auth; intentionally not faked)
