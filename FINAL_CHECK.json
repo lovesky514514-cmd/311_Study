@@ -1,0 +1,52 @@
+{
+  "http": {
+    "index.html": {
+      "status": 200,
+      "bytes": 3366
+    },
+    "style.css": {
+      "status": 200,
+      "bytes": 5215
+    },
+    "app.js": {
+      "status": 200,
+      "bytes": 18890
+    },
+    "sw.js": {
+      "status": 200,
+      "bytes": 648
+    },
+    "manifest.webmanifest": {
+      "status": 200,
+      "bytes": 156
+    },
+    "data/library.json": {
+      "status": 200,
+      "bytes": 5322881
+    },
+    "README.md": {
+      "status": 200,
+      "bytes": 290
+    },
+    "DEPLOY.md": {
+      "status": 200,
+      "bytes": 219
+    },
+    "BUILD_SELFTEST.json": {
+      "status": 200,
+      "bytes": 6222
+    }
+  },
+  "corpus_pages": 1642,
+  "corpus_chars": 1473560,
+  "doc_pages": {
+    "d1": 166,
+    "d2": 330,
+    "d3": 253,
+    "d4": 441,
+    "d5": 226,
+    "d6": 226
+  },
+  "node_syntax": "PASS",
+  "search_regression": "22/22 PASS"
+}
