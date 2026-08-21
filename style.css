@@ -17,9 +17,14 @@ main{width:min(920px,calc(100% - 28px));margin:0 auto 50px;padding-top:80px;min-
 .askbox button{width:92px;border:0;background:var(--blue);color:#fff;font-weight:600}
 .random-kp{margin-top:13px}
 .random-head,.related-head,.simple-head{display:flex;justify-content:space-between;align-items:center;margin:0 2px 9px}
-.knowledge-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
-.knowledge-item{border:1px solid var(--line);background:#fff;padding:10px 8px;text-align:center;border-radius:3px;color:#46515e;min-height:40px}
-.knowledge-item:hover{border-color:#b7c9e7;color:var(--blue)}
+.knowledge-list{background:#fff;border:1px solid var(--line)}
+.knowledge-item{width:100%;border:0;border-bottom:1px solid var(--line);background:#fff;padding:13px 16px;text-align:left;color:var(--text);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.knowledge-item:last-child{border-bottom:0}
+.knowledge-item:hover{background:#fafcff}
+.knowledge-main{min-width:0}
+.knowledge-title{font-weight:650;line-height:1.5}
+.knowledge-meta{font-size:12px;color:var(--muted);margin-top:4px}
+.knowledge-badge{font-size:12px;color:var(--green);white-space:nowrap;padding-top:1px}
 .answer{margin-top:14px;background:#fff;border:1px solid var(--line);padding:18px 20px;border-left:4px solid var(--blue)}
 .answer-title{font-weight:700;margin-bottom:9px}.answer ol{margin:0;padding-left:23px}.answer li{line-height:1.85;margin:6px 0}
 .hidden{display:none!important}
@@ -46,6 +51,6 @@ main{width:min(920px,calc(100% - 28px));margin:0 auto 50px;padding-top:80px;min-
   .bar>b{font-size:15px}
   .tab{padding:0 10px;font-size:13px}
   .askbox textarea{font-size:15px}.askbox button{width:76px}
-  .knowledge-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .knowledge-list{display:block}
   .result{padding:14px 12px}.result-top{display:block}.match{display:inline-block;margin-top:4px}.fill-list{grid-template-columns:1fr}.wrong>summary{display:block}
 }

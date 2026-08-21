@@ -1,0 +1,13 @@
+{
+  "version": "1.2.5",
+  "validation": {
+    "knowledge_alias_queries": "209/210 Top1; 210/210 Top5",
+    "curated_page_hit": "208/210 Top1; 210/210 Top5",
+    "out_of_domain_block": "30/30",
+    "rare_311_terms": "7/7",
+    "source_backed_spot_checks": "16/16",
+    "five_known_question_answers": "5/5 (C/D/C/D/A)",
+    "javascript_syntax": "PASS"
+  },
+  "important_note": "These are retrieval and audited-question regression tests, not a claim of 100% OCR character accuracy."
+}
