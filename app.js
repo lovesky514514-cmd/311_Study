@@ -1,291 +1,73 @@
+const DATA_URL='./data/library.json';
+const RECALL_KEY='study311_recall_final_v1',WRONG_KEY='study311_wrong_final_v1';
+let LIB={docs:[],pages:[]},CURRENT=[],PENDING=null,CURRENT_RECALL=null;
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const toast=m=>{const e=$('#toast');e.textContent=m;e.classList.add('show');clearTimeout(window.__t);window.__t=setTimeout(()=>e.classList.remove('show'),1500)};
+const getJSON=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(d))}catch{return d}};
+const saveJSON=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 
-let DATA=[];
-let currentSubject="全部";
-const WRONG_KEY="study311_wrong_v1";
-const AI_KEY="study311_optional_ai_v1";
-let AI_ENABLED=localStorage.getItem(AI_KEY)==="1";
-let puterLoading=null;
+const GROUPS=[
+['最近发展区','潜在发展水平','实际发展水平','支架式教学','老师帮助学生','老师帮一下就会','在帮助下完成','稍微难一点','刚好不会','够不到','跳一跳够得着','自己不会别人帮就会'],
+['皮亚杰','图式','同化','顺应','平衡','感知运动阶段','前运算阶段','具体运算阶段','形式运算阶段','守恒','可逆性','去自我中心'],
+['维果茨基','最近发展区','文化历史','内化','支架'],
+['埃里克森','八阶段','信任对怀疑','自主对羞怯','主动对内疚','勤奋对自卑','同一性','亲密对孤独','繁衍对停滞','完美对绝望'],
+['科尔伯格','三水平六阶段','前习俗','习俗水平','后习俗','社会契约','普遍道德原则'],
+['外层系统','父母工作','父母单位','爸妈工作','爸妈工作的地方','爸爸妈妈工作','家长工作单位','儿童不直接参与'],
+['布朗芬布伦纳','生态系统','微观系统','中间系统','外层系统','宏观系统','时间系统','家庭学校关系'],
+['学在官府','惟官有学','惟官有器','惟官有书','官师合一','政教合一'],
+['六艺','礼乐射御书数','礼','乐','射','御','书','数'],['辟雍','天子大学','天子的大学'],['泮宫','诸侯大学','诸侯的大学'],
+['稷下学宫','齐国学府','百家争鸣中心','官家操办私家主持'],['成均','乐教机构'],['庠','养老教育','养老机构'],['校','军事训练','习武场所'],
+['孔子','有教无类','因材施教','启发诱导','不愤不启','不悱不发'],['孟子','性善论'],['荀子','性恶论','化性起伪'],['墨子','兼爱','非攻','尚贤'],
+['董仲舒','独尊儒术','罢黜百家'],['太学','中央官学'],['科举','进士科','选官'],['书院','朱熹','白鹿洞书院'],
+['癸卯学制','奏定学堂章程'],['壬戌学制','六三三学制'],['蔡元培','五育并举','思想自由','兼容并包'],['陶行知','生活教育','教学做合一'],['陈鹤琴','活教育'],
+['苏格拉底','产婆术','问答法'],['柏拉图','理想国'],['亚里士多德','自由教育'],['昆体良','雄辩术原理'],['夸美纽斯','大教学论','班级授课制'],
+['洛克','绅士教育','白板说'],['卢梭','自然教育','爱弥儿'],['裴斯泰洛齐','要素教育','教育心理学化'],['赫尔巴特','教育性教学','四段教学'],
+['福禄贝尔','幼儿园','恩物'],['蒙台梭利','感官教育','儿童之家'],['杜威','教育即生活','学校即社会','从做中学'],
+['桑代克','试误说','效果律'],['巴甫洛夫','经典性条件作用'],['斯金纳','操作性条件作用','强化'],['班杜拉','观察学习','社会学习','自我效能'],
+['布鲁纳','发现学习','认知结构'],['奥苏贝尔','有意义接受学习','先行组织者'],['学习动机','成就动机','归因','自我效能','需要层次'],
+['学习策略','认知策略','元认知策略','资源管理策略'],['迁移','学习迁移','正迁移','负迁移'],['知识建构','陈述性知识','程序性知识'],['技能','动作技能','心智技能'],
+['教育目的','培养目标','全面发展'],['课程','课程标准','课程计划','教材'],['教学原则','教学方法','教学组织形式'],['德育','德育原则','德育方法'],
+['教师','学生','师生关系'],['班主任','班级管理'],['教育制度','学制'],['教育公平','教育机会均等'],['教育功能','个体功能','社会功能'],
+['教育研究','研究方法','选题','文献综述'],['观察法','教育观察'],['调查法','问卷','访谈'],['实验法','教育实验','自变量','因变量','控制变量'],
+['信度','可靠性'],['效度','有效性'],['抽样','随机抽样','分层抽样'],['行动研究','教育行动研究'],['叙事研究','教育叙事'],['定性研究','质性研究'],['定量研究','量化研究']
+];
+const STOP=new Set(['什么','怎么','怎样','哪个','哪种','属于','影响','帮助','老师','教师','学生','孩子','儿童','任务','问题','地方','东西','一下','自己','这个','那个','主要','进行','内容','相关','里面','知识','知识点','请问','为什么','是否','可以','应该','需要']);
+function norm(s){return String(s||'').toLowerCase().replace(/[臺台]/g,'台').replace(/[裏裡]/g,'里').replace(/\s+/g,'').replace(/[，。！？；：、“”‘’（）()【】\[\]《》<>·—\-_,.!?:;'"/\\|]/g,'')}
+function seg(s){const n=norm(s),set=new Set();try{for(const x of new Intl.Segmenter('zh-CN',{granularity:'word'}).segment(String(s||''))){const t=norm(x.segment);if(t.length>=2)set.add(t)}}catch{}if(!set.size){for(let i=0;i<n.length-1;i++)set.add(n.slice(i,i+2))}if(n.length>=2&&n.length<=6)set.add(n);return [...set]}
+function expand(q){const n=norm(q),set=new Set();for(const g of GROUPS){const key=norm(g[0]);const hit=(key&&n.includes(key))||g.slice(1).some(x=>{const t=norm(x);return t.length>=3&&n.includes(t)});if(hit)g.forEach(x=>set.add(norm(x)))}return [...set].filter(x=>x.length>=2)}
+function occ(h,n){let c=0,p=0;if(!n)return 0;while((p=h.indexOf(n,p))>=0){c++;p+=n.length}return c}
+function sourceBoost(p){let b=(p.doc==='d5'||p.doc==='d6')?10:((p.doc==='d2'||p.doc==='d4')?7:0);if(String(p.text||'').includes('【校对内容】'))b+=18;return b}
+function qBigrams(s){const n=norm(s),a=[];for(let i=0;i<n.length-1;i++){const x=n.slice(i,i+2);if(!STOP.has(x))a.push(x)}return [...new Set(a)]}
+function pageScore(q,p){const nq=norm(q),t=p.n||norm(p.text);let s=0,matched=new Set();const exact=t.includes(nq);if(exact){s+=100;matched.add(nq)}const terms=seg(q).filter(x=>x.length>=2&&!STOP.has(x));for(const x of terms){const c=occ(t,x);if(c){s+=Math.min(36,9*c)+(x.length>=4?6:0);matched.add(x)}}const aliases=expand(q);let aliasHits=0;for(const x of aliases){const c=occ(t,x);if(c){aliasHits++;s+=Math.min(30,6*c)+(x.length>=4?4:0);matched.add(x)}}const coverage=terms.length?terms.filter(x=>t.includes(x)).length/terms.length:0;if(coverage>=.7)s+=22;else if(coverage>=.45)s+=10;const bg=qBigrams(q),bgHits=bg.filter(x=>t.includes(x)).length,bgCoverage=bg.length?bgHits/bg.length:0;if(!exact&&!aliasHits&&coverage<.45&&nq.length>=6&&bgHits>=3&&bgCoverage>=.55)s+=12+Math.round(bgCoverage*14);s+=sourceBoost(p);const valid=exact||aliasHits>=1||coverage>=.45||(terms.length===1&&coverage===1)||(nq.length>=6&&bgHits>=3&&bgCoverage>=.55);return {score:s,matched:[...matched],coverage,aliasHits,bgCoverage,valid}}
+function matchPct(x){if(x.score>=100)return Math.min(99,94+Math.round(Math.min(5,x.coverage*5)));return Math.max(45,Math.min(93,Math.round(45+x.coverage*38+Math.min(15,x.score/8))))}
+function sentences(text){return String(text||'').replace(/\n+/g,'。').split(/(?<=[。！？；])/).map(x=>x.trim()).filter(x=>x.length>=6&&x.length<=260&&((x.match(/[\u4e00-\u9fff]/g)||[]).length>=4)&&!/^(关键词|相关表达)[:：]/.test(x))}
+function sentenceScore(q,s){const n=norm(s),qn=norm(q);let v=0;if(n.includes(qn))v+=100;for(const x of seg(q))if(x.length>=2&&!STOP.has(x)&&n.includes(x))v+=9;let novel=0;for(const x of expand(q)){if(n.includes(x)){v+=5;if(!qn.includes(x)){v+=6;novel++}}}const relevant=v>0;if(relevant&&/^解释[:：]/.test(s))v+=22;if(relevant&&/是什么|含义|定义|指什么/.test(q)&&/定义|含义|是指|指的是|称为|叫做|就是/.test(s))v+=18;if(relevant&&/叫什么/.test(q)&&novel>0&&/称为|叫做|名称|设/.test(s))v+=26;if(relevant&&/为什么|原因|根本/.test(q)&&/原因|由于|因为|根本|导致|源于/.test(s))v+=16;if(relevant&&/特点|特征/.test(q)&&/特点|特征|表现/.test(s))v+=14;if(relevant&&/作用|意义|影响/.test(q)&&/作用|意义|影响|价值/.test(s))v+=14;if(relevant&&/阶段|时期/.test(q)&&/阶段|时期|岁/.test(s))v+=12;if(relevant&&/区别|不同|比较/.test(q)&&/区别|不同|相比|而/.test(s))v+=10;if(/[？?]/.test(s))v-=32;if(/下列|以下|哪一|不属于|正确的是|错误的是|分别称为\s*\(/.test(s))v-=24;return v}
+function extractAnswer(q,rows){const a=[],rs=rows.slice(0,10);for(let ri=0;ri<rs.length;ri++){const r=rs[ri],rankBonus=Math.max(0,20-ri*3);for(const s of sentences(r.p.text)){const sc=sentenceScore(q,s)+sourceBoost(r.p)+rankBonus;if(sc>0)a.push({s,sc,p:r.p})}}a.sort((x,y)=>y.sc-x.sc);const out=[],seen=new Set();for(const x of a){const n=norm(x.s);if(seen.has(n))continue;seen.add(n);out.push(x);if(out.length>=3)break}return out}
+function bestExcerpt(q,text){const ss=sentences(text).map(s=>({s,v:sentenceScore(q,s)})).sort((a,b)=>b.v-a.v);if(ss[0]?.v>0)return ss.slice(0,3).map(x=>x.s).join(' ');return String(text||'').replace(/\n+/g,' ').slice(0,330)}
+function highlight(t,q){let h=esc(t);for(const x of [q,...expand(q)].filter(x=>x.length>=2).sort((a,b)=>b.length-a.length).slice(0,8)){try{h=h.replace(new RegExp(x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark>${m}</mark>`)}catch{}}return h}
+function explanation(q,p){const ranked=sentences(p.text).map(s=>({s,v:sentenceScore(q,s)})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);const points=[];for(const x of ranked){if(!points.includes(x.s))points.push(x.s);if(points.length>=3)break}if(!points.length)points.push(bestExcerpt(q,p.text));const kws=[...new Set([...expand(q),...seg(q)].filter(x=>x.length>=2&&norm(p.text).includes(norm(x))))].slice(0,5);return {points,kws}}
+function explainHTML(q,p){const e=explanation(q,p);return `<ol>${e.points.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>${e.kws.length?`<div class="meta">关键词：${esc(e.kws.join(' / '))}</div>`:''}`}
+function docName(id){return LIB.docs.find(d=>d.id===id)?.name||id}
 
-const $=(s)=>document.querySelector(s);
-const $$=(s)=>Array.from(document.querySelectorAll(s));
-const norm=s=>String(s||"").toLowerCase().replace(/\s+/g,"").replace(/[，。！？；：、“”‘’（）()【】\[\]《》<>·—\-_,.!?:;'"/\\|]/g,"");
-const escapeHTML=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+const EDU_HINT=/教育|学习|教学|课程|学生|教师|学校|学制|德育|心理|认知|动机|迁移|记忆|研究|法案|教育史|教育家|理论|儿童|发展区|大学|官学|私学|六艺|科举|书院/;
+function outOfDomain(q){if(EDU_HINT.test(q))return false;return [/量子色动力学/i,/显卡|超频|股票|天气|做饭|菜谱|彩票|游戏攻略/,/python.*(装饰器|代码|函数|怎么写|编程)/i,/总统是谁|谁是.{0,8}总统/].some(r=>r.test(q))}
+function search(){const q=$('#question').value.trim();if(!q)return;if(outOfDomain(q)){CURRENT=[];render(q,[]);return}const rows=LIB.pages.map(p=>{const x=pageScore(q,p);return {p,...x,pct:matchPct(x)}}).filter(x=>x.valid&&x.score>=16).sort((a,b)=>b.score-a.score).slice(0,40);CURRENT=rows;render(q,rows)}
+function render(q,rows){const res=$('#results');$('#relatedHead').classList.remove('hidden');$('#relatedCount').textContent=`${rows.length}条`;if(!rows.length){$('#answerBox').classList.remove('hidden');$('#answerList').innerHTML='<li>未找到</li>';$('#answerExplain').classList.add('hidden');res.innerHTML='';return}const ans=extractAnswer(q,rows);$('#answerBox').classList.remove('hidden');$('#answerList').innerHTML=ans.length?ans.map(x=>`<li>${esc(x.s)}<div class="meta">${esc(docName(x.p.doc))} · 第${x.p.page}页</div></li>`).join(''):'<li>未找到明确答案句，请查看关联搜索。</li>';const top=(rows.find(r=>String(r.p.text||'').includes('【校对内容】'))||rows.find(r=>['d2','d4'].includes(r.p.doc))||rows.find(r=>['d5','d6'].includes(r.p.doc))||rows[0]).p;$('#answerExplain').classList.remove('hidden');$('#answerExplainBody').innerHTML=explainHTML(q,top);res.innerHTML=rows.map((r,i)=>`<article class="result" data-i="${i}"><div class="result-top"><div class="result-title">${esc(docName(r.p.doc))} · 第${r.p.page}页</div><span class="match">匹配 ${r.pct}%</span></div><div class="snippet">${highlight(bestExcerpt(q,r.p.text),q)}</div><div class="actions"><button class="link exp">AI解释</button><button class="link recall-add">加入背诵</button><button class="link wrong-add">加入错题</button></div><details class="explain result-exp"><summary>AI解释</summary><div>${explainHTML(q,r.p)}</div></details></article>`).join('');$$('.result',res).forEach(el=>{const r=rows[+el.dataset.i];$('.exp',el).onclick=()=>{$('.result-exp',el).open=!$('.result-exp',el).open};$('.recall-add',el).onclick=()=>openRecall(q,r.p);$('.wrong-add',el).onclick=()=>openWrong(q,r.p)})}
 
-function toast(msg){
-  const el=$("#toast");el.textContent=msg;el.classList.add("show");
-  clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>el.classList.remove("show"),1600);
-}
-function wrongIds(){try{return JSON.parse(localStorage.getItem(WRONG_KEY)||"[]")}catch{return[]}}
-function saveWrong(ids){localStorage.setItem(WRONG_KEY,JSON.stringify([...new Set(ids)]))}
-function isWrong(id){return wrongIds().includes(id)}
+function candidateWords(q,p){const set=new Set();for(const x of [...expand(q),...seg(q)])if(x.length>=2&&p.text.includes(x))set.add(x);if(norm(p.text).includes(norm(q))&&q.length>=2)set.add(q);return [...set].sort((a,b)=>b.length-a.length).slice(0,6)}
+function openRecall(q,p){PENDING={type:'recall',q,p};$('#recallWords').value=candidateWords(q,p).slice(0,3).join('，');$('#recallDialog').showModal()}
+function saveRecall(){if(!PENDING)return;const words=$('#recallWords').value.split(/[，,；;\n]/).map(x=>x.trim()).filter(Boolean).filter(x=>PENDING.p.text.includes(x));if(!words.length){toast('挖空词必须出现在原文里');return false}const arr=getJSON(RECALL_KEY);arr.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),q:PENDING.q,doc:PENDING.p.doc,page:PENDING.p.page,text:PENDING.p.text,words:[...new Set(words)],created:Date.now()});saveJSON(RECALL_KEY,arr);toast('已加入背诵');PENDING=null;return true}
+function openWrong(q,p){PENDING={type:'wrong',q,p};$('#wrongNote').value='';$('#wrongDialog').showModal()}
+function saveWrong(){if(!PENDING)return;const arr=getJSON(WRONG_KEY);arr.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),q:PENDING.q,doc:PENDING.p.doc,page:PENDING.p.page,text:PENDING.p.text,note:$('#wrongNote').value.trim(),created:Date.now()});saveJSON(WRONG_KEY,arr);toast('已加入错题');PENDING=null}
 
-function belongs(d,subject){
-  if(subject==="全部")return true;
-  return String(d.section||"").includes(subject);
-}
-function score(q,d){
-  q=norm(q);if(!q)return 1;
-  const title=norm(d.title),content=norm(d.content),section=norm(d.section);
-  let s=0;
-  if(title===q)s+=30;
-  if(q.length>=2 && (title.includes(q)||q.includes(title)))s+=12;
+function renderRecall(){const arr=getJSON(RECALL_KEY);if(!arr.length){CURRENT_RECALL=null;$('#recallEmpty').classList.remove('hidden');$('#recallCard').classList.add('hidden');$('#recallList').innerHTML='';return}$('#recallEmpty').classList.add('hidden');$('#recallCard').classList.remove('hidden');if(!CURRENT_RECALL||!arr.some(x=>x.id===CURRENT_RECALL.id))CURRENT_RECALL=arr[0];const r=CURRENT_RECALL;$('#recallSource').textContent=`${docName(r.doc)} · 第${r.page}页`;let prompt=bestExcerpt(r.q,r.text);r.words.forEach((w,i)=>{prompt=prompt.replace(w,`【空${i+1}】`)});$('#recallPrompt').textContent=prompt;$('#recallInputs').innerHTML=r.words.map((w,i)=>`<div class="fill"><label>空${i+1}</label><input data-i="${i}"></div>`).join('');$('#recallFeedback').classList.add('hidden');$('#recallAnswer').classList.add('hidden');$('#recallAnswer').textContent=r.words.map((w,i)=>`空${i+1}：${w}`).join('\n');$('#recallExplain').innerHTML=explainHTML(r.q,{text:r.text});$('#recallList').innerHTML=arr.map(x=>`<div class="mini"><span>${esc(docName(x.doc))} · 第${x.page}页 · ${esc(x.words.join(' / '))}</span><button data-id="${x.id}">练习</button></div>`).join('');$$('#recallList button').forEach(b=>b.onclick=()=>{CURRENT_RECALL=arr.find(x=>x.id===b.dataset.id);renderRecall()})}
+function checkRecall(){if(!CURRENT_RECALL)return;let ok=0;$$('#recallInputs input').forEach(inp=>{const good=norm(inp.value)===norm(CURRENT_RECALL.words[+inp.dataset.i]);inp.classList.toggle('good',good);inp.classList.toggle('bad',!good);if(good)ok++});const e=$('#recallFeedback');e.classList.remove('hidden');e.className='feedback '+(ok===CURRENT_RECALL.words.length?'good':'bad');e.textContent=ok===CURRENT_RECALL.words.length?`全部正确 ${ok}/${CURRENT_RECALL.words.length}`:`答对 ${ok}/${CURRENT_RECALL.words.length}`}
+function deleteRecall(){if(!CURRENT_RECALL)return;saveJSON(RECALL_KEY,getJSON(RECALL_KEY).filter(x=>x.id!==CURRENT_RECALL.id));CURRENT_RECALL=null;renderRecall()}
+function recallWrong(){if(!CURRENT_RECALL)return;const arr=getJSON(WRONG_KEY);arr.push({id:Date.now().toString(36),q:CURRENT_RECALL.q,doc:CURRENT_RECALL.doc,page:CURRENT_RECALL.page,text:CURRENT_RECALL.text,note:`背诵：${CURRENT_RECALL.words.join(' / ')}`,created:Date.now()});saveJSON(WRONG_KEY,arr);toast('已加入错题')}
+function randomRecall(){const a=getJSON(RECALL_KEY);if(!a.length)return;CURRENT_RECALL=a[Math.floor(Math.random()*a.length)];renderRecall()}
 
-  for(const a of (d.aliases||[])){
-    const x=norm(a);
-    if(!x)continue;
-    if(x.length>=2 && q.includes(x))s+=10;
-    else if(q===x)s+=12;
-  }
-
-  for(const k of (d.keywords||[])){
-    const x=norm(k);
-    if(!x)continue;
-    // Ignore one-character keyword leakage such as "学" matching unrelated questions.
-    if(x.length>=2 && q.includes(x))s+=7;
-    else if(q===x)s+=8;
-  }
-
-  if(q.length>=2 && content.includes(q))s+=5;
-  if(q.length>=2 && section.includes(q))s+=3;
-
-  const nums=String(q).match(/\d+/g)||[];
-  if(d.type==="question"&&nums.length){
-    const blob=norm((d.title||"")+" "+(d.question||"")+" "+(d.aliases||[]).join(" "));
-    if(nums.every(n=>blob.includes(n)))s+=10;
-  }
-  return s;
-}
-function rankedData(q,subject=currentSubject){
-  return DATA.filter(d=>belongs(d,subject))
-    .map(d=>({d,s:score(q,d)}))
-    .filter(x=>!q||x.s>=5)
-    .sort((a,b)=>b.s-a.s);
-}
-function searchData(q){
-  return rankedData(q).map(x=>x.d);
-}
-function copyText(text){navigator.clipboard?.writeText(text).then(()=>toast("已复制资料")).catch(()=>toast("复制失败"))}
-
-
-async function ensurePuter(){
-  if(window.puter)return window.puter;
-  if(puterLoading)return puterLoading;
-  puterLoading=new Promise((resolve,reject)=>{
-    const s=document.createElement("script");
-    s.src="https://js.puter.com/v2/";
-    s.async=true;
-    s.onload=()=>window.puter?resolve(window.puter):reject(new Error("Puter.js 加载失败"));
-    s.onerror=()=>reject(new Error("无法加载 Puter.js"));
-    document.head.appendChild(s);
-  });
-  return puterLoading;
-}
-function aiResponseText(resp){
-  if(typeof resp==="string")return resp;
-  const c=resp?.message?.content;
-  if(typeof c==="string")return c;
-  if(Array.isArray(c))return c.map(x=>x?.text||x?.value||"").join("");
-  return String(resp||"");
-}
-async function explainWithAI(d,item){
-  if(!AI_ENABLED){toast("请先打开 AI解释");return}
-  let box=$(".ai-box",item);
-  if(!box){
-    box=document.createElement("div");
-    box.className="ai-box loading";
-    item.appendChild(box);
-  }
-  box.className="ai-box loading";
-  box.innerHTML="<b>AI解释</b>正在加载…";
-  try{
-    const puter=await ensurePuter();
-    const source=[
-      `标题：${d.title||""}`,
-      d.question?`题目：${d.question}`:"",
-      `资料：${d.content||""}`,
-      d.answer?`资料答案：${d.answer}`:"",
-      `来源：${d.source||""}；${d.page||""}`
-    ].filter(Boolean).join("\\n");
-    const prompt=`你是311教育学学习助手。只能依据下面【资料】解释，不允许使用资料外知识，不允许补充新事实。
-如果资料不足就说“这条资料不足以继续解释”。
-输出要求：1到3点，每点一句，简短易懂；选择题先说答案；不要开场白，不要总结。
-
-【资料】
-${source}`;
-    const resp=await puter.ai.chat(prompt,{model:"gpt-5.4-nano"});
-    const text=aiResponseText(resp).trim();
-    box.className="ai-box";
-    box.innerHTML=`<b>AI解释（仅辅助，答案以资料为准）</b>${escapeHTML(text||"没有返回内容").replace(/\\n/g,"<br>")}`;
-  }catch(e){
-    box.className="ai-box error";
-    box.innerHTML=`<b>AI解释不可用</b>${escapeHTML(e.message||String(e))}`;
-  }
-}
-
-function itemHTML(d){
-  const wrong=isWrong(d.id);
-  return `<article class="item" data-id="${escapeHTML(d.id)}">
-    <div class="item-top">
-      <div class="item-title"><span class="tag">${d.type==="question"?"题目":"知识"}</span>${escapeHTML(d.title)}</div>
-    </div>
-    <div class="item-meta">${escapeHTML(d.section)} · ${escapeHTML(d.source)} · 页 ${escapeHTML(d.page)}</div>
-    ${d.question?`<div class="item-question">${escapeHTML(d.question)}</div>`:""}
-    <div class="item-content">${escapeHTML(d.content)}</div>
-    ${d.answer?`<div class="item-answer"><b>答案：</b>${escapeHTML(d.answer)}</div>`:""}
-    <div class="item-actions">
-      ${d.answer?`<button class="link-btn answer-btn">显示答案</button>`:""}
-      <button class="link-btn copy-btn">复制资料</button>
-      ${AI_ENABLED?`<button class="link-btn ai-btn">AI解释</button>`:""}
-      ${d.type==="question"?`<button class="link-btn wrong wrong-btn">${wrong?"移出错题":"加入错题"}</button>`:""}
-    </div>
-  </article>`;
-}
-function bindItemActions(root){
-  $$(".item",root).forEach(el=>{
-    const d=DATA.find(x=>x.id===el.dataset.id);if(!d)return;
-    $(".answer-btn",el)?.addEventListener("click",e=>{
-      el.classList.toggle("show-answer");
-      e.currentTarget.textContent=el.classList.contains("show-answer")?"隐藏答案":"显示答案";
-    });
-    $(".copy-btn",el)?.addEventListener("click",()=>copyText(`${d.title}\n${d.content}${d.answer?`\n答案：${d.answer}`:""}`));
-    $(".ai-btn",el)?.addEventListener("click",()=>explainWithAI(d,el));
-    $(".wrong-btn",el)?.addEventListener("click",()=>{
-      let ids=wrongIds();
-      if(ids.includes(d.id))ids=ids.filter(x=>x!==d.id);else ids.push(d.id);
-      saveWrong(ids);renderResults();renderWrong();toast(ids.includes(d.id)?"已加入错题":"已移出错题");
-    });
-  });
-}
-function renderResults(){
-  const q=$("#searchInput").value.trim();
-  const rows=searchData(q);
-  $("#resultTitle").textContent=q?`搜索：${q}`:"全部资料";
-  $("#resultCount").textContent=`${rows.length} 条`;
-  const root=$("#resultList");
-  root.innerHTML=rows.length?rows.map(itemHTML).join(""):`<div class="empty">资料库没有找到相关内容。</div>`;
-  bindItemActions(root);
-}
-function renderWrong(){
-  const ids=wrongIds();
-  const rows=ids.map(id=>DATA.find(d=>d.id===id)).filter(Boolean);
-  const root=$("#wrongList");
-  root.innerHTML=rows.length?rows.map(itemHTML).join(""):`<div class="empty">还没有错题。</div>`;
-  bindItemActions(root);
-}
-function recallDocs(){return DATA.filter(d=>d.type==="knowledge"&&(d.keywords||[]).length)}
-function fillRecallSelect(){
-  const docs=recallDocs();
-  $("#recallSelect").innerHTML=docs.map(d=>`<option value="${escapeHTML(d.id)}">${escapeHTML(d.title)}</option>`).join("");
-  if(docs[0])renderRecall(docs[0].id);
-}
-function renderRecall(id){
-  const d=DATA.find(x=>x.id===id);if(!d)return;
-  let text=d.content;const answers=[];
-  const kws=[...new Set((d.keywords||[]).filter(k=>String(k).length>=2))].sort((a,b)=>b.length-a.length);
-  for(const k of kws){
-    if(answers.length>=5)break;
-    if(text.includes(k)){text=text.replaceAll(k,"＿".repeat(Math.min(8,Math.max(2,k.length))));answers.push(k)}
-  }
-  $("#recallMeta").textContent=`${d.title} · ${d.source} · 页 ${d.page}`;
-  $("#recallText").textContent=text;
-  $("#recallAnswer").textContent=answers.length?`答案：${answers.join("、")}`:"当前知识点没有可挖空关键词。";
-  $("#recallAnswer").hidden=true;
-  $("#showRecallBtn").textContent="显示答案";
-}
-function switchView(view){
-  $$(".view").forEach(v=>v.classList.remove("active"));
-  $$(".nav").forEach(n=>n.classList.toggle("active",n.dataset.view===view));
-  $("#view-"+view).classList.add("active");
-  if(view==="wrong")renderWrong();
-}
-
-
-function runSelfTest(){
-  const tests=[];
-  const add=(name,ok,detail)=>tests.push({name,ok:!!ok,detail});
-
-  add("资料库加载",Array.isArray(DATA)&&DATA.length===21,`当前 ${DATA.length} 条`);
-
-  const expectedAnswers={
-    "q-zj-001":"C","q-zj-002":"D","q-zj-003":"C","q-zj-004":"D","q-zj-005":"A"
-  };
-  const answerOK=Object.entries(expectedAnswers).every(([id,a])=>DATA.find(d=>d.id===id)?.answer===a);
-  add("5 道核对题答案",answerOK,"应为 C / D / C / D / A");
-
-  const cases=[
-    ["六艺教育","zj-007"],
-    ["稷下学宫","zj-009"],
-    ["皮亚杰四阶段","jx-003"],
-    ["最近发展区","jx-004"],
-    ["第一章知识点一第2题","q-zj-002"]
-  ];
-  const retrievalOK=cases.every(([q,id])=>rankedData(q,"全部")[0]?.d.id===id);
-  add("已知资料检索",retrievalOK,"5/5 典型查询应命中正确首条");
-
-  const ood=["量子色动力学三圈修正","Python装饰器","美国总统是谁"];
-  const oodOK=ood.every(q=>rankedData(q,"全部").length===0);
-  add("资料外问题拦截",oodOK,"3 个资料外问题必须 0 结果");
-
-  const temp="__study311_selftest__";
-  let storageOK=false;
-  try{localStorage.setItem(temp,"ok");storageOK=localStorage.getItem(temp)==="ok";localStorage.removeItem(temp)}catch{}
-  add("浏览器本地存储",storageOK,"用于保存错题与 AI 开关");
-
-  add("可选 AI 默认安全",!AI_ENABLED || typeof AI_ENABLED==="boolean","AI关闭时不会加载 Puter.js");
-
-  const passed=tests.filter(t=>t.ok).length;
-  $("#selfTestScore").textContent=`${passed}/${tests.length} 通过`;
-  $("#selfTestList").innerHTML=tests.map(t=>`<div class="selftest-row">
-    <span class="${t.ok?"ok":"fail"}">${t.ok?"✓":"×"}</span>
-    <div><b>${escapeHTML(t.name)}</b><br><small>${escapeHTML(t.detail)}</small></div>
-    <strong class="${t.ok?"ok":"fail"}">${t.ok?"PASS":"FAIL"}</strong>
-  </div>`).join("");
-  return {passed,total:tests.length,tests};
-}
-
-async function init(){
-  try{
-    DATA=await fetch("./data/knowledge.json",{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("资料文件读取失败");return r.json()});
-  }catch(e){
-    $("#resultList").innerHTML=`<div class="empty">资料加载失败：${escapeHTML(e.message)}</div>`;return;
-  }
-  $("#aiToggle").checked=AI_ENABLED;
-  $("#aiToggle").addEventListener("change",e=>{
-    AI_ENABLED=e.target.checked;
-    localStorage.setItem(AI_KEY,AI_ENABLED?"1":"0");
-    renderResults();renderWrong();
-    toast(AI_ENABLED?"AI解释已开启（只在点击时调用）":"AI解释已关闭");
-  });
-
-  $("#runSelfTestBtn")?.addEventListener("click",runSelfTest);
-
-  renderResults();renderWrong();fillRecallSelect();
-
-  $("#searchBtn").addEventListener("click",renderResults);
-  $("#searchInput").addEventListener("keydown",e=>{if(e.key==="Enter")renderResults()});
-  $$(".subject").forEach(b=>b.addEventListener("click",()=>{
-    $$(".subject").forEach(x=>x.classList.remove("active"));b.classList.add("active");currentSubject=b.dataset.subject;renderResults();
-  }));
-  $$(".nav").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
-  $("#recallSelect").addEventListener("change",e=>renderRecall(e.target.value));
-  $("#newRecallBtn").addEventListener("click",()=>{
-    const docs=recallDocs();if(!docs.length)return;
-    const d=docs[Math.floor(Math.random()*docs.length)];$("#recallSelect").value=d.id;renderRecall(d.id);
-  });
-  $("#showRecallBtn").addEventListener("click",e=>{
-    const box=$("#recallAnswer");box.hidden=!box.hidden;e.currentTarget.textContent=box.hidden?"显示答案":"隐藏答案";
-  });
-  $("#clearWrongBtn").addEventListener("click",()=>{if(confirm("确定清空错题本？")){saveWrong([]);renderWrong();renderResults()}});
-  $("#exportWrongBtn").addEventListener("click",()=>{
-    const payload={version:1,wrong_ids:wrongIds(),exported_at:new Date().toISOString()};
-    const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="311-wrong-questions.json";a.click();URL.revokeObjectURL(a.href);
-  });
-  $("#importWrongInput").addEventListener("change",async e=>{
-    const f=e.target.files[0];if(!f)return;
-    try{const data=JSON.parse(await f.text());if(!Array.isArray(data.wrong_ids))throw new Error();saveWrong(data.wrong_ids);renderWrong();renderResults();toast("错题已导入")}
-    catch{toast("导入文件格式不正确")}finally{e.target.value=""}
-  });
-  if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
-}
+function renderWrong(){const arr=getJSON(WRONG_KEY).sort((a,b)=>b.created-a.created);const root=$('#wrongList');if(!arr.length){root.innerHTML='<div class="empty">暂无内容</div>';return}root.innerHTML=arr.map(w=>`<details class="wrong" data-id="${w.id}"><summary><div><b>${esc(w.q||'知识点')}</b><div class="meta">${esc(docName(w.doc))} · 第${w.page}页</div></div><span class="meta">展开</span></summary><div class="wrong-body">${w.note?`<div class="wrong-note">${esc(w.note)}</div>`:''}<div class="source">${esc(bestExcerpt(w.q,w.text))}</div><details class="explain"><summary>AI解释</summary><div>${explainHTML(w.q,{text:w.text})}</div></details><div class="actions"><button class="link danger del">删除</button></div></div></details>`).join('');$$('.wrong',root).forEach(el=>$('.del',el).onclick=()=>{saveJSON(WRONG_KEY,getJSON(WRONG_KEY).filter(x=>x.id!==el.dataset.id));renderWrong()})}
+function switchView(v){$$('.view').forEach(x=>x.classList.remove('active'));$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));$('#view-'+v).classList.add('active');if(v==='recall')renderRecall();if(v==='wrong')renderWrong()}
+async function init(){try{LIB=await fetch(DATA_URL,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('资料加载失败');return r.json()})}catch(e){$('#answerBox').classList.remove('hidden');$('#answerList').innerHTML='<li>资料加载失败</li>';return}$('#askBtn').onclick=search;$('#question').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();search()}};$$('.tab').forEach(b=>b.onclick=()=>switchView(b.dataset.view));$('#saveRecall').onclick=e=>{e.preventDefault();if(saveRecall())$('#recallDialog').close()};$('#saveWrong').onclick=e=>{e.preventDefault();saveWrong();$('#wrongDialog').close()};$('#checkRecall').onclick=checkRecall;$('#showRecall').onclick=()=>$('#recallAnswer').classList.toggle('hidden');$('#recallWrong').onclick=recallWrong;$('#deleteRecall').onclick=deleteRecall;$('#randomRecall').onclick=randomRecall;$('#clearWrong').onclick=()=>{if(confirm('清空错题？')){saveJSON(WRONG_KEY,[]);renderWrong()}};if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{})}
 init();

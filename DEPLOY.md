@@ -1,10 +1,7 @@
-# GitHub Pages 部署检查
+# 部署
 
-- [ ] `index.html` 在仓库根目录
-- [ ] `style.css`、`app.js` 在根目录
-- [ ] `data/knowledge.json` 存在
-- [ ] 仓库 Settings → Pages
-- [ ] Deploy from a branch
-- [ ] main / root
-- [ ] 打开 GitHub 给出的 Pages 地址
-- [ ] 手机打开测试搜索、错题、背诵
+1. 把本目录全部文件上传到 GitHub 仓库根目录。
+2. Settings → Pages。
+3. Source 选 Deploy from a branch。
+4. Branch 选 main，目录选 /(root)。
+5. 保存并等待 Pages 地址生成。

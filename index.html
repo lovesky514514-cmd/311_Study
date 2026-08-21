@@ -1,106 +1,90 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#ffffff">
-  <title>311 背书助手</title>
-  <link rel="stylesheet" href="./style.css">
-  <link rel="manifest" href="./manifest.webmanifest">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>311背书助手</title>
+<link rel="stylesheet" href="./style.css">
+<link rel="manifest" href="./manifest.webmanifest">
 </head>
 <body>
-  <header class="top">
-    <div class="wrap top-inner">
-      <a class="brand" href="./">311 背书助手</a>
-      <nav>
-        <button class="nav active" data-view="bank">题库</button>
-        <button class="nav" data-view="recall">背诵</button>
-        <button class="nav" data-view="wrong">错题</button>
-        <button class="nav" data-view="about">说明</button>
-      </nav>
+<header>
+  <div class="bar">
+    <b>311背书助手</b>
+    <nav>
+      <button class="tab active" data-view="ask">问答</button>
+      <button class="tab" data-view="recall">背诵</button>
+      <button class="tab" data-view="wrong">错题</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section id="view-ask" class="view active">
+    <div class="askbox">
+      <textarea id="question" rows="2" placeholder="输入问题"></textarea>
+      <button id="askBtn">搜索</button>
     </div>
-  </header>
 
-  <main class="wrap">
-    <section class="search-area">
-      <div class="subject-line">
-        <span>科目</span>
-        <button class="subject active" data-subject="全部">全部</button>
-        <button class="subject" data-subject="中国教育史">中国教育史</button>
-        <button class="subject" data-subject="教育心理学">教育心理学</button>
-      </div>
-      <div class="search-box">
-        <input id="searchInput" placeholder="输入知识点、人物、题号，例如：六艺 / 皮亚杰 / 第2题">
-        <button id="searchBtn">搜索</button>
-      </div>
-      <div class="search-bottom">
-        <div class="search-hint">默认纯本地 · 没有资料就显示“未找到”</div>
-        <label class="ai-toggle">
-          <input id="aiToggle" type="checkbox">
-          <span>AI解释（可选）</span>
-          <small>无需 API Key</small>
-        </label>
-      </div>
+    <section id="answerBox" class="answer hidden">
+      <div class="answer-title">回答</div>
+      <ol id="answerList"></ol>
+      <details id="answerExplain" class="explain hidden">
+        <summary>AI解释</summary>
+        <div id="answerExplainBody"></div>
+      </details>
     </section>
 
-    <section id="view-bank" class="view active">
-      <div class="toolbar">
-        <strong id="resultTitle">全部资料</strong>
-        <span id="resultCount">0 条</span>
-      </div>
-      <div id="resultList" class="list"></div>
-    </section>
+    <div id="relatedHead" class="related-head hidden">
+      <b>关联搜索</b><span id="relatedCount"></span>
+    </div>
+    <div id="results" class="results"></div>
+  </section>
 
-    <section id="view-recall" class="view">
-      <div class="toolbar">
-        <strong>背诵模式</strong>
-        <span>自动挖关键词，不生成新内容</span>
+  <section id="view-recall" class="view">
+    <div class="simple-head"><b>背诵</b><button id="randomRecall" class="link">随机</button></div>
+    <div id="recallEmpty" class="empty">暂无内容</div>
+    <article id="recallCard" class="recall hidden">
+      <div id="recallSource" class="meta"></div>
+      <div id="recallPrompt" class="prompt"></div>
+      <div id="recallInputs" class="fill-list"></div>
+      <div class="actions">
+        <button id="checkRecall" class="primary">检查</button>
+        <button id="showRecall" class="minor">答案</button>
+        <button id="recallWrong" class="minor">加入错题</button>
+        <button id="deleteRecall" class="link danger">删除</button>
       </div>
-      <div class="recall-controls">
-        <select id="recallSelect"></select>
-        <button id="newRecallBtn">换一题</button>
-      </div>
-      <article class="recall-sheet">
-        <div class="recall-meta" id="recallMeta">请选择知识点</div>
-        <div class="recall-text" id="recallText">—</div>
-        <button id="showRecallBtn" class="link-btn">显示答案</button>
-        <div id="recallAnswer" class="recall-answer" hidden></div>
-      </article>
-    </section>
+      <div id="recallFeedback" class="feedback hidden"></div>
+      <div id="recallAnswer" class="source hidden"></div>
+      <details class="explain"><summary>AI解释</summary><div id="recallExplain"></div></details>
+    </article>
+    <div id="recallList" class="mini-list"></div>
+  </section>
 
-    <section id="view-wrong" class="view">
-      <div class="toolbar">
-        <strong>我的错题</strong>
-        <div class="toolbar-actions">
-          <button id="exportWrongBtn" class="minor">导出</button>
-          <label class="minor file-label">导入<input id="importWrongInput" type="file" accept=".json"></label>
-          <button id="clearWrongBtn" class="minor danger">清空</button>
-        </div>
-      </div>
-      <div id="wrongList" class="list"></div>
-    </section>
+  <section id="view-wrong" class="view">
+    <div class="simple-head"><b>错题</b><button id="clearWrong" class="link danger">清空</button></div>
+    <div id="wrongList" class="wrong-list"></div>
+  </section>
+</main>
 
-    <section id="view-about" class="view">
-      <div class="about-box">
-        <h2>这个版本为什么不需要 AI</h2>
-        <p>搜索、错题记录和背诵挖空全部在浏览器本地完成。资料库没有内容时，不会让模型猜答案。</p>
-        <h3>DeepSeek 网页版</h3>
-        <p>可以手动使用；本站不会抓取或模拟登录 DeepSeek 网页版。资料条目可以直接复制，再自行粘贴到网页版。</p>
-        <a class="external" href="https://chat.deepseek.com/" target="_blank" rel="noopener">打开 DeepSeek 网页版 ↗</a>
-        <h3>可选 AI：Puter.js</h3>
-        <p>打开“AI解释”后，只有你主动点某条资料的“AI解释”按钮时才加载 Puter.js。它不需要 API Key 或本站后端；首次使用可能要求登录 Puter。AI 只收到当前命中的资料，不会在资料库没有结果时自由回答。</p>
-        <div class="about-actions">
-          <button id="runSelfTestBtn" class="minor">运行网站自检</button>
-          <strong id="selfTestScore">未运行</strong>
-        </div>
-        <div id="selfTestList" class="selftest-list"></div>
-        <h3>数据保存</h3>
-        <p>错题存在当前设备浏览器的 localStorage；换设备不会自动同步，所以提供导入 / 导出。</p>
-      </div>
-    </section>
-  </main>
+<dialog id="recallDialog">
+  <form method="dialog" class="dialog">
+    <b>加入背诵</b>
+    <label>挖空词<input id="recallWords" placeholder="多个词用逗号分隔"></label>
+    <div class="dialog-actions"><button value="cancel" class="minor">取消</button><button id="saveRecall" value="default" class="primary">保存</button></div>
+  </form>
+</dialog>
 
-  <div id="toast" class="toast"></div>
-  <script src="./app.js"></script>
+<dialog id="wrongDialog">
+  <form method="dialog" class="dialog">
+    <b>加入错题</b>
+    <label>备注<textarea id="wrongNote" rows="3" placeholder="可不填"></textarea></label>
+    <div class="dialog-actions"><button value="cancel" class="minor">取消</button><button id="saveWrong" value="default" class="primary">保存</button></div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast"></div>
+<script src="./app.js"></script>
 </body>
 </html>
