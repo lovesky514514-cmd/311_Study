@@ -1,6 +1,6 @@
 const DATA_URL='./data/library.json';
 const RECALL_KEY='study311_recall_final_v1',WRONG_KEY='study311_wrong_final_v1';
-let LIB={docs:[],pages:[]},CURRENT=[],PENDING=null,CURRENT_RECALL=null;
+let LIB={docs:[],pages:[]},CURRENT=[],PENDING=null,CURRENT_RECALL=null,RANDOM_POOL=null;
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const toast=m=>{const e=$('#toast');e.textContent=m;e.classList.add('show');clearTimeout(window.__t);window.__t=setTimeout(()=>e.classList.remove('show'),1500)};
@@ -50,10 +50,160 @@ function explanation(q,p){const ranked=sentences(p.text).map(s=>({s,v:sentenceSc
 function explainHTML(q,p){const e=explanation(q,p);return `<ol>${e.points.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>${e.kws.length?`<div class="meta">关键词：${esc(e.kws.join(' / '))}</div>`:''}`}
 function docName(id){return LIB.docs.find(d=>d.id===id)?.name||id}
 
+function wrongExists(q,p){
+  return getJSON(WRONG_KEY).some(x=>x.doc===p.doc&&x.page===p.page&&norm(x.q||'')===norm(q||''));
+}
+function addWrongDirect(q,p,note=''){
+  const arr=getJSON(WRONG_KEY);
+  if(arr.some(x=>x.doc===p.doc&&x.page===p.page&&norm(x.q||'')===norm(q||''))){
+    toast('已经在错题里');
+    return false;
+  }
+  arr.push({
+    id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    q:q||'知识点',
+    doc:p.doc,page:p.page,text:p.text,
+    note:note||'',
+    created:Date.now()
+  });
+  saveJSON(WRONG_KEY,arr);
+  toast('已加入错题');
+  return true;
+}
+function autoWordsFromText(text,limit=4){
+  const n=norm(text),found=[];
+  for(const g of GROUPS){
+    const present=g.filter(x=>x.length>=2&&n.includes(norm(x)));
+    if(!present.length)continue;
+    const canonical=present.includes(g[0])?g[0]:present[0];
+    if(canonical.length>=2&&!found.includes(canonical))found.push(canonical);
+    for(const x of present.slice(1)){
+      if(x.length>=2&&!found.includes(x))found.push(x);
+      if(found.length>=limit)break;
+    }
+    if(found.length>=limit)break;
+  }
+  return found.slice(0,limit);
+}
+function recallPromptAndWords(r){
+  let prompt=r.prompt||bestExcerpt(r.q||r.words?.[0]||'',r.text);
+  let words=(r.words||[]).filter(w=>prompt.includes(w));
+  if(!words.length){
+    words=autoWordsFromText(prompt,4).filter(w=>prompt.includes(w));
+  }
+  if(!words.length&&r.words?.length){
+    const target=r.words[0];
+    const ss=sentences(r.text).filter(s=>s.includes(target));
+    if(ss.length){
+      prompt=ss.slice(0,3).join(' ');
+      words=r.words.filter(w=>prompt.includes(w));
+    }
+  }
+  return {prompt,words};
+}
+function makeRandomRecall(){
+  if(!RANDOM_POOL){
+    const preferred=LIB.pages.filter(p=>['d5','d6','d2','d4'].includes(p.doc)&&p.page>3&&String(p.text||'').length>80);
+    const fallback=LIB.pages.filter(p=>p.page>3&&String(p.text||'').length>80);
+    const src=preferred.length?preferred:fallback;
+    RANDOM_POOL=[];
+    for(const p of src){
+      const words=autoWordsFromText(p.text,4);
+      if(!words.length)continue;
+      const q=words[0];
+      const prompt=bestExcerpt(q,p.text);
+      const usable=words.filter(w=>prompt.includes(w)).slice(0,4);
+      if(!usable.length)continue;
+      RANDOM_POOL.push({p,q,prompt,words:usable});
+    }
+  }
+  if(!RANDOM_POOL.length)return null;
+  const x=RANDOM_POOL[Math.floor(Math.random()*RANDOM_POOL.length)];
+  return {
+    id:'random-'+Date.now().toString(36),
+    q:x.q,doc:x.p.doc,page:x.p.page,text:x.p.text,
+    prompt:x.prompt,words:x.words,created:Date.now(),ephemeral:true
+  };
+}
+function addRecallDirect(q,p){
+  let prompt=bestExcerpt(q,p.text);
+  let words=candidateWords(q,p).slice(0,4).filter(w=>prompt.includes(w));
+  if(!words.length)words=autoWordsFromText(prompt,4).filter(w=>prompt.includes(w));
+  if(!words.length){
+    toast('这页没有找到合适的挖空词');
+    return false;
+  }
+  const item={
+    id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    q:q||words[0],doc:p.doc,page:p.page,text:p.text,prompt,
+    words:[...new Set(words)],created:Date.now()
+  };
+  const arr=getJSON(RECALL_KEY);
+  if(!arr.some(x=>x.doc===item.doc&&x.page===item.page&&JSON.stringify(x.words)===JSON.stringify(item.words))){
+    arr.push(item);saveJSON(RECALL_KEY,arr);
+  }
+  CURRENT_RECALL=item;
+  toast('已加入背诵');
+  return true;
+}
+
 const EDU_HINT=/教育|学习|教学|课程|学生|教师|学校|学制|德育|心理|认知|动机|迁移|记忆|研究|法案|教育史|教育家|理论|儿童|发展区|大学|官学|私学|六艺|科举|书院/;
 function outOfDomain(q){if(EDU_HINT.test(q))return false;return [/量子色动力学/i,/显卡|超频|股票|天气|做饭|菜谱|彩票|游戏攻略/,/python.*(装饰器|代码|函数|怎么写|编程)/i,/总统是谁|谁是.{0,8}总统/].some(r=>r.test(q))}
 function search(){const q=$('#question').value.trim();if(!q)return;if(outOfDomain(q)){CURRENT=[];render(q,[]);return}const rows=LIB.pages.map(p=>{const x=pageScore(q,p);return {p,...x,pct:matchPct(x)}}).filter(x=>x.valid&&x.score>=16).sort((a,b)=>b.score-a.score).slice(0,40);CURRENT=rows;render(q,rows)}
-function render(q,rows){const res=$('#results');$('#relatedHead').classList.remove('hidden');$('#relatedCount').textContent=`${rows.length}条`;if(!rows.length){$('#answerBox').classList.remove('hidden');$('#answerList').innerHTML='<li>未找到</li>';$('#answerExplain').classList.add('hidden');res.innerHTML='';return}const ans=extractAnswer(q,rows);$('#answerBox').classList.remove('hidden');$('#answerList').innerHTML=ans.length?ans.map(x=>`<li>${esc(x.s)}<div class="meta">${esc(docName(x.p.doc))} · 第${x.p.page}页</div></li>`).join(''):'<li>未找到明确答案句，请查看关联搜索。</li>';const top=(rows.find(r=>String(r.p.text||'').includes('【校对内容】'))||rows.find(r=>['d2','d4'].includes(r.p.doc))||rows.find(r=>['d5','d6'].includes(r.p.doc))||rows[0]).p;$('#answerExplain').classList.remove('hidden');$('#answerExplainBody').innerHTML=explainHTML(q,top);res.innerHTML=rows.map((r,i)=>`<article class="result" data-i="${i}"><div class="result-top"><div class="result-title">${esc(docName(r.p.doc))} · 第${r.p.page}页</div><span class="match">匹配 ${r.pct}%</span></div><div class="snippet">${highlight(bestExcerpt(q,r.p.text),q)}</div><div class="actions"><button class="link exp">AI解释</button><button class="link recall-add">加入背诵</button><button class="link wrong-add">加入错题</button></div><details class="explain result-exp"><summary>AI解释</summary><div>${explainHTML(q,r.p)}</div></details></article>`).join('');$$('.result',res).forEach(el=>{const r=rows[+el.dataset.i];$('.exp',el).onclick=()=>{$('.result-exp',el).open=!$('.result-exp',el).open};$('.recall-add',el).onclick=()=>openRecall(q,r.p);$('.wrong-add',el).onclick=()=>openWrong(q,r.p)})}
+function render(q,rows){
+  const res=$('#results');
+  $('#relatedHead').classList.remove('hidden');
+  $('#relatedCount').textContent=`${rows.length}条`;
+
+  if(!rows.length){
+    $('#answerBox').classList.remove('hidden');
+    $('#answerList').innerHTML='<li>未找到</li>';
+    $('#answerExplain').classList.add('hidden');
+    res.innerHTML='';
+    return;
+  }
+
+  const ans=extractAnswer(q,rows);
+  $('#answerBox').classList.remove('hidden');
+  $('#answerList').innerHTML=ans.length
+    ?ans.map(x=>`<li>${esc(x.s)}<div class="meta">${esc(docName(x.p.doc))} · 第${x.p.page}页</div></li>`).join('')
+    :'<li>未找到明确答案句，请查看关联搜索。</li>';
+
+  const preferred=
+    rows.find(r=>String(r.p.text||'').includes('【校对内容】'))
+    ||rows.find(r=>['d2','d4'].includes(r.p.doc))
+    ||rows.find(r=>['d5','d6'].includes(r.p.doc))
+    ||rows[0];
+  const top=preferred.p;
+
+  $('#answerExplain').classList.remove('hidden');
+  $('#answerExplainBody').innerHTML=explainHTML(q,top);
+
+  res.innerHTML=rows.map((r,i)=>`<article class="result" data-i="${i}">
+    <div class="result-top">
+      <div class="result-title">${esc(docName(r.p.doc))} · 第${r.p.page}页</div>
+      <span class="match">匹配 ${r.pct}%</span>
+    </div>
+    <div class="snippet">${highlight(bestExcerpt(q,r.p.text),q)}</div>
+    <div class="actions">
+      <button class="link exp">AI解释</button>
+      <button class="link recall-add">加入背诵</button>
+      <button class="link wrong-add">${wrongExists(q,r.p)?'已加入错题':'加入错题'}</button>
+    </div>
+    <details class="explain result-exp"><summary>AI解释</summary><div>${explainHTML(q,r.p)}</div></details>
+  </article>`).join('');
+
+  $$('.result',res).forEach(el=>{
+    const r=rows[+el.dataset.i];
+    $('.exp',el).onclick=()=>{$('.result-exp',el).open=!$('.result-exp',el).open};
+    $('.recall-add',el).onclick=()=>{
+      if(addRecallDirect(q,r.p))$('.recall-add',el).textContent='已加入背诵';
+    };
+    $('.wrong-add',el).onclick=()=>{
+      if(addWrongDirect(q,r.p))$('.wrong-add',el).textContent='已加入错题';
+    };
+  });
+}
 
 function candidateWords(q,p){const set=new Set();for(const x of [...expand(q),...seg(q)])if(x.length>=2&&p.text.includes(x))set.add(x);if(norm(p.text).includes(norm(q))&&q.length>=2)set.add(q);return [...set].sort((a,b)=>b.length-a.length).slice(0,6)}
 function openRecall(q,p){PENDING={type:'recall',q,p};$('#recallWords').value=candidateWords(q,p).slice(0,3).join('，');$('#recallDialog').showModal()}
@@ -61,13 +211,86 @@ function saveRecall(){if(!PENDING)return;const words=$('#recallWords').value.spl
 function openWrong(q,p){PENDING={type:'wrong',q,p};$('#wrongNote').value='';$('#wrongDialog').showModal()}
 function saveWrong(){if(!PENDING)return;const arr=getJSON(WRONG_KEY);arr.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),q:PENDING.q,doc:PENDING.p.doc,page:PENDING.p.page,text:PENDING.p.text,note:$('#wrongNote').value.trim(),created:Date.now()});saveJSON(WRONG_KEY,arr);toast('已加入错题');PENDING=null}
 
-function renderRecall(){const arr=getJSON(RECALL_KEY);if(!arr.length){CURRENT_RECALL=null;$('#recallEmpty').classList.remove('hidden');$('#recallCard').classList.add('hidden');$('#recallList').innerHTML='';return}$('#recallEmpty').classList.add('hidden');$('#recallCard').classList.remove('hidden');if(!CURRENT_RECALL||!arr.some(x=>x.id===CURRENT_RECALL.id))CURRENT_RECALL=arr[0];const r=CURRENT_RECALL;$('#recallSource').textContent=`${docName(r.doc)} · 第${r.page}页`;let prompt=bestExcerpt(r.q,r.text);r.words.forEach((w,i)=>{prompt=prompt.replace(w,`【空${i+1}】`)});$('#recallPrompt').textContent=prompt;$('#recallInputs').innerHTML=r.words.map((w,i)=>`<div class="fill"><label>空${i+1}</label><input data-i="${i}"></div>`).join('');$('#recallFeedback').classList.add('hidden');$('#recallAnswer').classList.add('hidden');$('#recallAnswer').textContent=r.words.map((w,i)=>`空${i+1}：${w}`).join('\n');$('#recallExplain').innerHTML=explainHTML(r.q,{text:r.text});$('#recallList').innerHTML=arr.map(x=>`<div class="mini"><span>${esc(docName(x.doc))} · 第${x.page}页 · ${esc(x.words.join(' / '))}</span><button data-id="${x.id}">练习</button></div>`).join('');$$('#recallList button').forEach(b=>b.onclick=()=>{CURRENT_RECALL=arr.find(x=>x.id===b.dataset.id);renderRecall()})}
+function renderRecall(){
+  const arr=getJSON(RECALL_KEY);
+
+  if(!CURRENT_RECALL)CURRENT_RECALL=arr[0]||makeRandomRecall();
+
+  if(!CURRENT_RECALL){
+    $('#recallEmpty').classList.remove('hidden');
+    $('#recallEmpty').textContent='没有找到可随机生成的背诵内容';
+    $('#recallCard').classList.add('hidden');
+    $('#recallList').innerHTML='';
+    return;
+  }
+
+  const r=CURRENT_RECALL;
+  const built=recallPromptAndWords(r);
+
+  if(!built.words.length){
+    CURRENT_RECALL=makeRandomRecall();
+    if(CURRENT_RECALL)return renderRecall();
+    $('#recallEmpty').classList.remove('hidden');
+    $('#recallEmpty').textContent='当前资料没有可挖空内容';
+    $('#recallCard').classList.add('hidden');
+    return;
+  }
+
+  r.words=built.words;
+  r.prompt=built.prompt;
+
+  $('#recallEmpty').classList.add('hidden');
+  $('#recallCard').classList.remove('hidden');
+  $('#recallSource').textContent=`${r.ephemeral?'随机 · ':''}${docName(r.doc)} · 第${r.page}页`;
+
+  let prompt=r.prompt;
+  r.words.forEach((w,i)=>{prompt=prompt.replace(w,`【空${i+1}】`)});
+  $('#recallPrompt').textContent=prompt;
+
+  $('#recallInputs').innerHTML=r.words.map((w,i)=>`
+    <div class="fill">
+      <label>空${i+1}</label>
+      <input data-i="${i}" autocomplete="off" placeholder="输入答案">
+    </div>`).join('');
+
+  $('#recallFeedback').classList.add('hidden');
+  $('#recallAnswer').classList.add('hidden');
+  $('#recallAnswer').textContent=r.words.map((w,i)=>`空${i+1}：${w}`).join('\n');
+  $('#recallExplain').innerHTML=explainHTML(r.q||r.words[0],{text:r.text});
+  $('#deleteRecall').textContent=r.ephemeral?'下一题':'删除';
+
+  $('#recallList').innerHTML=arr.length
+    ?arr.map(x=>`<div class="mini"><span>${esc(docName(x.doc))} · 第${x.page}页 · ${esc((x.words||[]).join(' / '))}</span><button data-id="${x.id}">练习</button></div>`).join('')
+    :'<div class="mini"><span>没有收藏卡也可以直接随机练习。</span></div>';
+
+  $$('#recallList button').forEach(b=>b.onclick=()=>{
+    CURRENT_RECALL=arr.find(x=>x.id===b.dataset.id);
+    renderRecall();
+  });
+}
 function checkRecall(){if(!CURRENT_RECALL)return;let ok=0;$$('#recallInputs input').forEach(inp=>{const good=norm(inp.value)===norm(CURRENT_RECALL.words[+inp.dataset.i]);inp.classList.toggle('good',good);inp.classList.toggle('bad',!good);if(good)ok++});const e=$('#recallFeedback');e.classList.remove('hidden');e.className='feedback '+(ok===CURRENT_RECALL.words.length?'good':'bad');e.textContent=ok===CURRENT_RECALL.words.length?`全部正确 ${ok}/${CURRENT_RECALL.words.length}`:`答对 ${ok}/${CURRENT_RECALL.words.length}`}
-function deleteRecall(){if(!CURRENT_RECALL)return;saveJSON(RECALL_KEY,getJSON(RECALL_KEY).filter(x=>x.id!==CURRENT_RECALL.id));CURRENT_RECALL=null;renderRecall()}
-function recallWrong(){if(!CURRENT_RECALL)return;const arr=getJSON(WRONG_KEY);arr.push({id:Date.now().toString(36),q:CURRENT_RECALL.q,doc:CURRENT_RECALL.doc,page:CURRENT_RECALL.page,text:CURRENT_RECALL.text,note:`背诵：${CURRENT_RECALL.words.join(' / ')}`,created:Date.now()});saveJSON(WRONG_KEY,arr);toast('已加入错题')}
-function randomRecall(){const a=getJSON(RECALL_KEY);if(!a.length)return;CURRENT_RECALL=a[Math.floor(Math.random()*a.length)];renderRecall()}
+function deleteRecall(){
+  if(!CURRENT_RECALL)return;
+  if(CURRENT_RECALL.ephemeral)return randomRecall();
+  saveJSON(RECALL_KEY,getJSON(RECALL_KEY).filter(x=>x.id!==CURRENT_RECALL.id));
+  CURRENT_RECALL=null;
+  renderRecall();
+}
+function recallWrong(){
+  if(!CURRENT_RECALL)return;
+  addWrongDirect(
+    CURRENT_RECALL.q||CURRENT_RECALL.words?.[0]||'背诵',
+    {doc:CURRENT_RECALL.doc,page:CURRENT_RECALL.page,text:CURRENT_RECALL.text},
+    `背诵填空：${(CURRENT_RECALL.words||[]).join(' / ')}`
+  );
+  renderWrong();
+}
+function randomRecall(){
+  CURRENT_RECALL=makeRandomRecall();
+  renderRecall();
+}
 
 function renderWrong(){const arr=getJSON(WRONG_KEY).sort((a,b)=>b.created-a.created);const root=$('#wrongList');if(!arr.length){root.innerHTML='<div class="empty">暂无内容</div>';return}root.innerHTML=arr.map(w=>`<details class="wrong" data-id="${w.id}"><summary><div><b>${esc(w.q||'知识点')}</b><div class="meta">${esc(docName(w.doc))} · 第${w.page}页</div></div><span class="meta">展开</span></summary><div class="wrong-body">${w.note?`<div class="wrong-note">${esc(w.note)}</div>`:''}<div class="source">${esc(bestExcerpt(w.q,w.text))}</div><details class="explain"><summary>AI解释</summary><div>${explainHTML(w.q,{text:w.text})}</div></details><div class="actions"><button class="link danger del">删除</button></div></div></details>`).join('');$$('.wrong',root).forEach(el=>$('.del',el).onclick=()=>{saveJSON(WRONG_KEY,getJSON(WRONG_KEY).filter(x=>x.id!==el.dataset.id));renderWrong()})}
-function switchView(v){$$('.view').forEach(x=>x.classList.remove('active'));$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));$('#view-'+v).classList.add('active');if(v==='recall')renderRecall();if(v==='wrong')renderWrong()}
-async function init(){try{LIB=await fetch(DATA_URL,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('资料加载失败');return r.json()})}catch(e){$('#answerBox').classList.remove('hidden');$('#answerList').innerHTML='<li>资料加载失败</li>';return}$('#askBtn').onclick=search;$('#question').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();search()}};$$('.tab').forEach(b=>b.onclick=()=>switchView(b.dataset.view));$('#saveRecall').onclick=e=>{e.preventDefault();if(saveRecall())$('#recallDialog').close()};$('#saveWrong').onclick=e=>{e.preventDefault();saveWrong();$('#wrongDialog').close()};$('#checkRecall').onclick=checkRecall;$('#showRecall').onclick=()=>$('#recallAnswer').classList.toggle('hidden');$('#recallWrong').onclick=recallWrong;$('#deleteRecall').onclick=deleteRecall;$('#randomRecall').onclick=randomRecall;$('#clearWrong').onclick=()=>{if(confirm('清空错题？')){saveJSON(WRONG_KEY,[]);renderWrong()}};if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{})}
+function switchView(v){$$('.view').forEach(x=>x.classList.remove('active'));$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));$('#view-'+v).classList.add('active');if(v==='recall'){if(!CURRENT_RECALL)CURRENT_RECALL=makeRandomRecall();renderRecall()}if(v==='wrong')renderWrong()}
+async function init(){console.log('311背书助手 app.js v1.1.0');try{LIB=await fetch(DATA_URL,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('资料加载失败');return r.json()})}catch(e){$('#answerBox').classList.remove('hidden');$('#answerList').innerHTML='<li>资料加载失败</li>';return}$('#askBtn').onclick=search;$('#question').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();search()}};$$('.tab').forEach(b=>b.onclick=()=>switchView(b.dataset.view));$('#saveRecall').onclick=e=>{e.preventDefault();if(saveRecall())$('#recallDialog').close()};$('#saveWrong').onclick=e=>{e.preventDefault();saveWrong();$('#wrongDialog').close()};$('#checkRecall').onclick=checkRecall;$('#showRecall').onclick=()=>$('#recallAnswer').classList.toggle('hidden');$('#recallWrong').onclick=recallWrong;$('#deleteRecall').onclick=deleteRecall;$('#randomRecall').onclick=randomRecall;$('#clearWrong').onclick=()=>{if(confirm('清空错题？')){saveJSON(WRONG_KEY,[]);renderWrong()}};if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{})}
 init();
