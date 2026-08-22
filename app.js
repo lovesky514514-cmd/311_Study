@@ -2,7 +2,7 @@ const DATA_URL='./data/library.json';
 const KNOWLEDGE_URL='./data/knowledge.json';
 const QUESTIONS_URL='./data/questions.json';
 const RECALL_KEY='study311_recall_final_v1',WRONG_KEY='study311_wrong_final_v1',CLOZE_STATS_KEY='study311_cloze_stats_v1';
-let LIB={docs:[],pages:[]},KNOWLEDGE=[],QUESTIONS=[],CURRENT=[],CURRENT_RECALL=null,CURRENT_QUIZ=null,QUIZ_LOCKED=false;
+let LIB={docs:[],pages:[]},KNOWLEDGE=[],QUESTIONS=[],CURRENT=[],CURRENT_RECALL=null,CURRENT_QUIZ=null,QUIZ_LOCKED=false,QUIZ_POOL=[];
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const toast=m=>{const e=$('#toast');e.textContent=m;e.classList.add('show');clearTimeout(window.__t);window.__t=setTimeout(()=>e.classList.remove('show'),1500)};
@@ -193,7 +193,7 @@ function displayExcerpt(q,p){const km=knowledgeMatches(q);const mapped=km.find(m
 function isQuestionRef(q){return /第[0-9一二三四五六七八九十]+题/.test(q)}
 function correctedAnswer(q){
   const sq=structuredQuestion(q);
-  if(sq){return {answer:sq.answer,explanation:sq.explanation,page:findPage(sq.a_doc,sq.a_page)||findPage(sq.q_doc,sq.q_page),structured:sq};}
+  if(sq){return {answer:sq.answer,explanation:sq.explanation||sq.reference||'',page:findPage(sq.a_doc,sq.answer_page||sq.a_page)||findPage(sq.q_doc,sq.question_page||sq.q_page),structured:sq};}
   if(!isQuestionRef(q))return null;
   const nq=norm(q)
     .replace(/正确答案|答案是什么|答案|是什么|请问/g,'');
@@ -226,102 +226,189 @@ function correctedAnswer(q){
 }
 
 function questionPage(item){
-  return findPage(item.q_doc,item.q_page)||findPage(item.a_doc,item.a_page)||null;
+  return findPage(item.q_doc,item.question_page||item.q_page)||findPage(item.a_doc,item.answer_page||item.a_page)||null;
 }
-function gradeQuestion(item,selected){return !!item&&selected===item.answer}
+function isChoiceQuestion(item){return item?.type==='choice'}
+function canGradeQuestion(item){return !!item?.answer_available && !!item?.answer && /^[ABCD]$/.test(item.answer)}
+function hasReference(item){return !!item?.answer_available && !!(item.reference||item.explanation)}
+function verificationLabel(item){
+  if(item.verification==='verified')return '人工核对';
+  if(item.verification==='high')return '高置信配对';
+  return '待校验';
+}
 function addQuestionWrong(item,selected=''){
-  const p=questionPage(item);
-  if(!p)return false;
-  const note=selected?`刷题选择 ${selected}，正确答案 ${item.answer}`:`题目：${item.topic} 第${item.number}题`;
+  const p=questionPage(item)||{doc:item.q_doc||'d3',page:item.question_page||item.q_page||1,text:item.raw_question||item.question};
+  const ans=canGradeQuestion(item)?`，正确答案 ${item.answer}`:'';
+  const note=selected?`刷题作答 ${selected}${ans}`:`${item.type_label||'题目'} · ${verificationLabel(item)}`;
   return addWrong(item.question,p,note);
 }
-function optionButtonsHTML(item,prefix='quiz'){
-  return Object.entries(item.options||{}).map(([key,text])=>`
-    <button class="quiz-option" data-option="${esc(key)}" type="button">
+function optionButtonsHTML(item){
+  const opts=item.options||{};
+  return 'ABCD'.split('').map(key=>{
+    const text=opts[key]||'';
+    const cls=text?'quiz-option':'quiz-option letter-only';
+    return `<button class="${cls}" data-option="${esc(key)}" type="button">
       <span class="option-key">${esc(key)}</span>
-      <span>${esc(text)}</span>
-    </button>`).join('');
+      <span class="${text?'':'option-empty'}">${text?esc(text):'选择 '+esc(key)}</span>
+    </button>`;
+  }).join('');
 }
 function bindQuestionOptions(root,item,onDone){
   const buttons=$$('.quiz-option',root);
   let locked=false;
   buttons.forEach(btn=>btn.onclick=()=>{
     if(locked)return;
-    locked=true;
     const selected=btn.dataset.option;
-    const good=gradeQuestion(item,selected);
+    if(!canGradeQuestion(item)){
+      buttons.forEach(b=>b.classList.toggle('selected',b===btn));
+      onDone?.({good:null,selected,pending:true});
+      return;
+    }
+    locked=true;
+    const good=selected===item.answer;
     buttons.forEach(b=>{
       b.disabled=true;
       if(b.dataset.option===item.answer)b.classList.add('correct');
     });
     if(!good){
-      btn.classList.remove('correct');
-      btn.classList.add('wrong-choice');
+      btn.classList.remove('correct');btn.classList.add('wrong-choice');
       addQuestionWrong(item,selected);
     }else btn.classList.add('correct');
-    onDone?.({good,selected});
+    onDone?.({good,selected,pending:false});
   });
+}
+function questionMeta(item){
+  const bits=[item.source,item.subject,item.type_label||'题目'];
+  if(item.year)bits.push(`${item.year}年`);
+  if(item.number!=null)bits.push(`第${item.number}题`);
+  if(item.question_page)bits.push(`试题册第${item.question_page}页`);
+  return bits.filter(Boolean).join(' · ');
+}
+function renderStatusTags(item){
+  const v=item.verification==='pending'?'pending':'ok';
+  const oq=item.ocr_quality==='rough'?'rough':'';
+  const arr=[
+    `<span class="qtag ${v}">${esc(verificationLabel(item))}</span>`,
+    `<span class="qtag ${oq}">OCR ${item.ocr_quality==='good'?'较清晰':item.ocr_quality==='usable'?'可用':'较粗糙'}</span>`
+  ];
+  if(item.options_complete&&isChoiceQuestion(item))arr.push('<span class="qtag ok">选项已拆分</span>');
+  else if(isChoiceQuestion(item))arr.push('<span class="qtag pending">选项按原题显示</span>');
+  if(item.answer_page)arr.push(`<span class="qtag">解析册第${item.answer_page}页</span>`);
+  return arr.join('');
 }
 function renderInlineQuestion(item){
   const box=$('#answerQuiz');
-  $('#answerBox').classList.add('has-quiz');
-  box.classList.remove('hidden');
-  box.innerHTML=`
-    <div class="quiz-question">${esc(item.question)}</div>
-    <div class="quiz-options">${optionButtonsHTML(item,'inline')}</div>
-    <div class="quiz-feedback hidden"></div>
-    <div class="actions"><button class="link reveal-answer" type="button">显示答案</button></div>`;
+  $('#answerBox').classList.add('has-quiz');box.classList.remove('hidden');
+  if(!isChoiceQuestion(item)){
+    box.innerHTML=`<div class="quiz-question">${esc(item.question)}</div><div class="meta">${esc(questionMeta(item))}</div><div class="actions"><button class="link" type="button">主观题请到“刷题”页作答</button></div>`;
+    return;
+  }
+  box.innerHTML=`<div class="quiz-question ${item.options_complete?'':'raw-choice'}">${esc(item.question)}</div>
+    <div class="quiz-options">${optionButtonsHTML(item)}</div><div class="quiz-feedback hidden"></div>
+    <div class="actions"><button class="link reveal-answer" type="button">${canGradeQuestion(item)?'显示答案':'答案待校验'}</button></div>`;
   const feedback=$('.quiz-feedback',box);
-  const showFeedback=(good,selected)=>{
+  const showFeedback=(good,selected,pending=false)=>{
     feedback.classList.remove('hidden');
+    if(pending){feedback.className='quiz-feedback';feedback.textContent='本题解析尚未可靠配对，已记录你的选择但暂不判分。';return}
     feedback.className='quiz-feedback '+(good?'good':'bad');
     feedback.textContent=good?'回答正确':`回答错误，正确答案 ${item.answer}`;
     $('#answerExplain').classList.remove('hidden');
-    $('#answerExplainBody').innerHTML=`<div>${esc(item.explanation)}</div>`;
+    $('#answerExplainBody').innerHTML=`<div>${esc(item.explanation||item.reference||'')}</div>`;
   };
-  bindQuestionOptions(box,item,({good,selected})=>showFeedback(good,selected));
+  bindQuestionOptions(box,item,showFeedback);
   $('.reveal-answer',box).onclick=()=>{
+    if(!canGradeQuestion(item)){showFeedback(null,'',true);return}
     const btn=$(`.quiz-option[data-option="${item.answer}"]`,box);
-    if(btn){
-      $$('.quiz-option',box).forEach(b=>b.disabled=true);
-      btn.classList.add('correct');
-    }
-    showFeedback(true,item.answer);
+    if(btn){$$('.quiz-option',box).forEach(b=>b.disabled=true);btn.classList.add('correct')}
+    showFeedback(true,item.answer,false);
   };
 }
 function clearInlineQuestion(){
-  $('#answerBox').classList.remove('has-quiz');
-  $('#answerQuiz').classList.add('hidden');
-  $('#answerQuiz').innerHTML='';
+  $('#answerBox').classList.remove('has-quiz');$('#answerQuiz').classList.add('hidden');$('#answerQuiz').innerHTML='';
+}
+function getQuizFilters(){
+  return {
+    source:$('#quizSource')?.value||'',
+    subject:$('#quizSubject')?.value||'',
+    type:$('#quizType')?.value||'',
+    status:$('#quizStatus')?.value||'',
+    keyword:($('#quizKeyword')?.value||'').trim()
+  };
+}
+function rebuildQuizPool(){
+  const f=getQuizFilters(), nk=norm(f.keyword);
+  QUIZ_POOL=QUESTIONS.filter(q=>{
+    if(f.source&&q.source!==f.source)return false;
+    if(f.subject&&q.subject!==f.subject)return false;
+    if(f.type&&q.type!==f.type)return false;
+    if(f.status==='gradeable'&&!q.answer_available)return false;
+    if(f.status==='pending'&&q.answer_available)return false;
+    if(nk){
+      const hay=norm([q.question,q.topic,q.chapter,q.knowledge_point,q.year,q.number].join(' '));
+      if(!hay.includes(nk))return false;
+    }
+    return true;
+  });
+  const gradeable=QUIZ_POOL.filter(q=>q.answer_available).length;
+  const subj=QUIZ_POOL.filter(q=>q.type!=='choice').length;
+  $('#quizPoolMeta').textContent=`当前 ${QUIZ_POOL.length} 题 · 可判分/有参考答案 ${gradeable} · 主观题 ${subj}`;
+  return QUIZ_POOL;
 }
 function chooseRandomQuestion(){
-  if(!QUESTIONS.length)return null;
-  if(QUESTIONS.length===1)return QUESTIONS[0];
+  if(!QUIZ_POOL.length)rebuildQuizPool();
+  if(!QUIZ_POOL.length)return null;
+  if(QUIZ_POOL.length===1)return QUIZ_POOL[0];
   let next;
-  do{next=QUESTIONS[Math.floor(Math.random()*QUESTIONS.length)]}while(CURRENT_QUIZ&&next.id===CURRENT_QUIZ.id);
+  do{next=QUIZ_POOL[Math.floor(Math.random()*QUIZ_POOL.length)]}while(CURRENT_QUIZ&&next.id===CURRENT_QUIZ.id);
   return next;
 }
 function renderQuiz(item){
   if(!item){$('#quizCard').classList.add('hidden');return}
-  CURRENT_QUIZ=item;QUIZ_LOCKED=false;
-  $('#quizCard').classList.remove('hidden');
-  $('#quizTopic').textContent=`${item.topic} · 第${item.number}题`;
+  CURRENT_QUIZ=item;QUIZ_LOCKED=false;$('#quizCard').classList.remove('hidden');
+  $('#quizTopic').textContent=questionMeta(item);
+  $('#quizStatusLine').innerHTML=renderStatusTags(item);
   $('#quizQuestion').textContent=item.question;
-  $('#quizOptions').innerHTML=optionButtonsHTML(item);
-  $('#quizFeedback').classList.add('hidden');
-  $('#quizExplain').classList.add('hidden');
-  $('#quizExplainBody').textContent=item.explanation;
+  $('#quizQuestion').classList.toggle('raw-choice',isChoiceQuestion(item)&&!item.options_complete);
+  $('#quizFeedback').classList.add('hidden');$('#quizExplain').classList.add('hidden');
+  $('#quizExplainBody').textContent=item.explanation||item.reference||'';
   $('#quizAddWrong').textContent='加入错题';
-  bindQuestionOptions($('#quizOptions'),item,({good,selected})=>{
-    QUIZ_LOCKED=true;
-    const f=$('#quizFeedback');
-    f.classList.remove('hidden');
-    f.className='quiz-feedback '+(good?'good':'bad');
-    f.textContent=good?'回答正确':`回答错误，正确答案 ${item.answer}；已加入错题`;
-    $('#quizExplain').classList.remove('hidden');
-  });
+
+  if(isChoiceQuestion(item)){
+    $('#quizOptions').classList.remove('hidden');
+    $('#subjectiveArea').classList.add('hidden');
+    $('#quizOptions').innerHTML=optionButtonsHTML(item);
+    bindQuestionOptions($('#quizOptions'),item,({good,selected,pending})=>{
+      const f=$('#quizFeedback');f.classList.remove('hidden');
+      if(pending){
+        f.className='quiz-feedback';
+        f.textContent='本题答案尚未可靠配对，暂不判分。题目仍保留在全量题库中。';
+        return;
+      }
+      f.className='quiz-feedback '+(good?'good':'bad');
+      f.textContent=good?'回答正确':`回答错误，正确答案 ${item.answer}；已加入错题`;
+      if(item.explanation){$('#quizExplain').classList.remove('hidden')}
+    });
+  }else{
+    $('#quizOptions').classList.add('hidden');
+    $('#subjectiveArea').classList.remove('hidden');
+    $('#subjectiveAnswer').value='';
+    $('#subjectiveReference').classList.add('hidden');
+    $('#subjectiveReference').textContent=item.reference||item.explanation||'';
+    $('#showSubjectiveRef').disabled=!hasReference(item);
+    $('#showSubjectiveRef').textContent=hasReference(item)?'查看参考答案':'参考答案待校验';
+    $('#showSubjectiveRef').onclick=()=>{
+      if(!hasReference(item))return;
+      $('#subjectiveReference').classList.toggle('hidden');
+      $('#quizExplain').classList.remove('hidden');
+    };
+    $('#subjectiveKnow').onclick=()=>toast('已标记：会了');
+    $('#subjectiveWrong').onclick=()=>{
+      if(addQuestionWrong(item,$('#subjectiveAnswer').value?'已作答':'未作答'))toast('已加入错题');
+    };
+  }
 }
 function nextQuiz(){renderQuiz(chooseRandomQuestion())}
+
 function render(q,rows){
   const res=$('#results');
   clearInlineQuestion();
@@ -468,7 +555,38 @@ function recallWrong(){
 }
 
 function renderWrong(){const arr=getJSON(WRONG_KEY).sort((a,b)=>b.created-a.created),root=$('#wrongList');if(!arr.length){root.innerHTML='<div class="empty">暂无内容</div>';return}root.innerHTML=arr.map(w=>`<details class="wrong" data-id="${w.id}"><summary><div><b>${esc(w.q||'知识点')}</b><div class="meta">${esc(docName(w.doc))} · 第${w.page}页</div></div><span class="meta">展开</span></summary><div class="wrong-body">${w.note?`<div class="wrong-note">${esc(w.note)}</div>`:''}<div class="source">${esc(displayExcerpt(w.q,findPage(w.doc,w.page)||{text:w.text}))}</div><details class="explain"><summary>AI解释</summary><div>${explainHTML(w.q,{text:w.text})}</div></details><div class="actions"><button class="link danger del">删除</button></div></div></details>`).join('');$$('.wrong',root).forEach(el=>$('.del',el).onclick=()=>{saveJSON(WRONG_KEY,getJSON(WRONG_KEY).filter(x=>x.id!==el.dataset.id));renderWrong()})}
-function switchView(v){$$('.view').forEach(x=>x.classList.remove('active'));$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));$('#view-'+v).classList.add('active');if(v==='recall'){if(!CURRENT_RECALL)CURRENT_RECALL=makeRandomRecall();renderRecall()}if(v==='quiz'){if(!CURRENT_QUIZ)CURRENT_QUIZ=chooseRandomQuestion();renderQuiz(CURRENT_QUIZ)}if(v==='wrong')renderWrong();window.scrollTo({top:0})}
+function switchView(v){$$('.view').forEach(x=>x.classList.remove('active'));$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));$('#view-'+v).classList.add('active');if(v==='recall'){if(!CURRENT_RECALL)CURRENT_RECALL=makeRandomRecall();renderRecall()}if(v==='quiz'){rebuildQuizPool();if(!CURRENT_QUIZ||!QUIZ_POOL.some(q=>q.id===CURRENT_QUIZ.id))CURRENT_QUIZ=chooseRandomQuestion();renderQuiz(CURRENT_QUIZ)}if(v==='wrong')renderWrong();window.scrollTo({top:0})}
 async function clearOldCaches(){try{if('serviceWorker'in navigator){const regs=await navigator.serviceWorker.getRegistrations();for(const r of regs)await r.unregister()}if('caches'in window){const ks=await caches.keys();for(const k of ks)await caches.delete(k)}}catch{}}
-async function init(){console.log('311背书助手 FINAL cloze v1.5.1');await clearOldCaches();try{[LIB,{items:KNOWLEDGE},{questions:QUESTIONS}]=await Promise.all([fetch(DATA_URL,{cache:'no-store'}).then(r=>r.json()),fetch(KNOWLEDGE_URL,{cache:'no-store'}).then(r=>r.json()),fetch(QUESTIONS_URL,{cache:'no-store'}).then(r=>r.json())])}catch(e){$('#answerBox').classList.remove('hidden');$('#answerList').innerHTML='<li>资料加载失败</li>';return}LIB.pages.forEach(p=>{p.n=norm(pageSearchText(p))});$('#askBtn').onclick=search;$('#question').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();search()}};$$('.tab').forEach(b=>b.onclick=()=>switchView(b.dataset.view));$('#refreshKnowledge').onclick=randomKnowledge;$('#checkRecall').onclick=checkRecall;$('#showRecall').onclick=()=>$('#recallAnswer').classList.toggle('hidden');$('#alternateRecall').onclick=()=>renderRecall(true);$('#recallWrong').onclick=recallWrong;$('#deleteRecall').onclick=deleteRecall;$('#randomRecall').onclick=randomRecall;$('#randomQuiz').onclick=nextQuiz;$('#nextQuiz').onclick=nextQuiz;$('#quizAddWrong').onclick=()=>{if(CURRENT_QUIZ&&addQuestionWrong(CURRENT_QUIZ)){toast('已加入错题');$('#quizAddWrong').textContent='已加入错题'}};$('#quizCount').textContent=`题库 ${QUESTIONS.length} 题`;$('#clearWrong').onclick=()=>{if(confirm('清空错题？')){saveJSON(WRONG_KEY,[]);renderWrong()}};randomKnowledge();renderWrong()}
+async function init(){
+  console.log('311背书助手 FINAL full-bank v2.0.0');
+  await clearOldCaches();
+  try{
+    [LIB,{items:KNOWLEDGE},{questions:QUESTIONS}]=await Promise.all([
+      fetch(DATA_URL,{cache:'no-store'}).then(r=>r.json()),
+      fetch(KNOWLEDGE_URL,{cache:'no-store'}).then(r=>r.json()),
+      fetch(QUESTIONS_URL,{cache:'no-store'}).then(r=>r.json())
+    ]);
+  }catch(e){
+    $('#answerBox').classList.remove('hidden');$('#answerList').innerHTML='<li>资料加载失败</li>';return;
+  }
+  LIB.pages.forEach(p=>{p.n=norm(pageSearchText(p))});
+  $('#askBtn').onclick=search;
+  $('#question').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();search()}};
+  $$('.tab').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+  $('#refreshKnowledge').onclick=randomKnowledge;
+  $('#checkRecall').onclick=checkRecall;
+  $('#showRecall').onclick=()=>$('#recallAnswer').classList.toggle('hidden');
+  $('#alternateRecall').onclick=()=>renderRecall(true);
+  $('#recallWrong').onclick=recallWrong;
+  $('#deleteRecall').onclick=deleteRecall;
+  $('#randomRecall').onclick=randomRecall;
+  $('#randomQuiz').onclick=()=>{rebuildQuizPool();nextQuiz()};
+  $('#nextQuiz').onclick=nextQuiz;
+  $('#applyQuizFilter').onclick=()=>{rebuildQuizPool();CURRENT_QUIZ=null;nextQuiz()};
+  $('#quizKeyword').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();rebuildQuizPool();CURRENT_QUIZ=null;nextQuiz()}};
+  $('#quizAddWrong').onclick=()=>{if(CURRENT_QUIZ&&addQuestionWrong(CURRENT_QUIZ)){toast('已加入错题');$('#quizAddWrong').textContent='已加入错题'}};
+  $('#clearWrong').onclick=()=>{if(confirm('清空错题？')){saveJSON(WRONG_KEY,[]);renderWrong()}};
+  $('#quizCount').textContent=`全量题库 ${QUESTIONS.length} 题`;
+  rebuildQuizPool();randomKnowledge();renderWrong();
+}
 init();

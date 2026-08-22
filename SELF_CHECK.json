@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0-full",
+  "stats": {
+    "total": 2726,
+    "by_source": {
+      "应试题库": 1724,
+      "历年真题": 1002
+    },
+    "by_type": {
+      "choice": 2107,
+      "judgment": 255,
+      "essay": 148,
+      "subjective": 158,
+      "short": 58
+    },
+    "choice_total": 2107,
+    "choice_options_complete": 1391,
+    "auto_gradeable_choice": 1250,
+    "subjective_total": 619,
+    "subjective_with_reference": 117,
+    "verified": 17,
+    "high_confidence": 1350,
+    "pending": 1359
+  },
+  "known_17_answer_test": {
+    "correct": 17,
+    "total": 17,
+    "accuracy": 100.0
+  },
+  "known_17_vs_auto_match": {
+    "comparable": 13,
+    "agree": 13,
+    "agreement_pct": 100.0
+  },
+  "structural": {
+    "unique_ids": true,
+    "all_questions_renderable": true,
+    "all_pages_present": true,
+    "js_syntax": "PASS",
+    "ui_wiring": {
+      "quiz_filters": true,
+      "subjective_ui": true,
+      "choice_buttons": true,
+      "pending_no_guess": true,
+      "full_count": true,
+      "cloze_preserved": true
+    }
+  },
+  "accuracy_note": "17道人工逐题核对样本为100%。其余题目只有达到保守阈值才允许自动判分/展示参考答案；低置信配对全部保留题目但标记待校验，不猜答案。该策略优先保证已自动判分部分的准确性，不把OCR覆盖率冒充答案准确率。"
+}
