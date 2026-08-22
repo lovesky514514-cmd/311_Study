@@ -54,3 +54,31 @@ main{width:min(920px,calc(100% - 28px));margin:0 auto 50px;padding-top:80px;min-
   .knowledge-list{display:block}
   .result{padding:14px 12px}.result-top{display:block}.match{display:inline-block;margin-top:4px}.fill-list{grid-template-columns:1fr}.wrong>summary{display:block}
 }
+
+/* v1.4 Rain Classroom-style question buttons */
+.quiz-head-actions{display:flex;align-items:center;gap:12px}
+.quiz-card{background:#fff;border:1px solid var(--line);padding:20px}
+.quiz-question{font-size:17px;line-height:1.85;font-weight:600;margin:8px 0 16px;white-space:pre-wrap}
+.quiz-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.quiz-option{min-height:54px;border:1px solid #dce1e7;background:#fff;border-radius:8px;padding:10px 13px;text-align:left;display:flex;align-items:flex-start;gap:10px;line-height:1.55;transition:.16s}
+.quiz-option:hover{border-color:#96b9ef;background:#f7fbff}
+.quiz-option .option-key{width:28px;height:28px;border-radius:50%;border:1px solid #cdd5df;display:grid;place-items:center;flex:0 0 28px;font-weight:700}
+.quiz-option.selected{border-color:var(--blue);background:#eef5ff}
+.quiz-option.correct{border-color:#55ad83;background:#effaf4;color:#176844}
+.quiz-option.correct .option-key{border-color:#55ad83;background:#55ad83;color:#fff}
+.quiz-option.wrong-choice{border-color:#de8585;background:#fff3f3;color:#a23d3d}
+.quiz-option.wrong-choice .option-key{border-color:#d96868;background:#d96868;color:#fff}
+.quiz-option:disabled{cursor:default;opacity:1}
+.quiz-feedback{margin-top:13px;padding:11px 13px;border-radius:5px;line-height:1.7}
+.quiz-feedback.good{background:#effaf4;color:#176844}
+.quiz-feedback.bad{background:#fff3f3;color:#a23d3d}
+.quiz-actions{display:flex;gap:9px;align-items:center;margin-top:14px}
+.inline-quiz{margin-top:10px}
+.inline-quiz .quiz-question{font-size:15px;margin-top:0}
+.answer.has-quiz ol{display:none}
+.answer.has-quiz .inline-quiz{display:block!important}
+@media(max-width:720px){
+  .quiz-options{grid-template-columns:1fr}
+  .quiz-card{padding:15px 12px}
+  .tab{padding:0 8px}
+}
