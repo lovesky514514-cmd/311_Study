@@ -230,33 +230,37 @@ function questionPage(item){
 }
 function isChoiceQuestion(item){return item?.type==='choice'}
 function canGradeQuestion(item){return !!item?.answer_available && !!item?.answer && /^[ABCD]$/.test(item.answer)}
-function hasReference(item){return !!item?.answer_available && !!(item.reference||item.explanation)}
-
-function formatStudyText(text){
-  const s=String(text||'').replace(/\r/g,'').trim();
-  if(!s)return '';
-  const escaped=esc(s);
-  const parts=escaped
-    .replace(/\n+/g,'\n')
-    .split(/\n|(?=(?:[（(][1-9][)）]))|(?=材料(?:大意)?[:：])|(?=请回答[:：]?)/)
-    .map(x=>x.trim()).filter(Boolean);
-  return parts.map(x=>{
-    if(/^材料(?:大意)?[:：]/.test(x))return `<div class="study-material">${x}</div>`;
-    if(/^请回答[:：]?/.test(x))return `<div class="study-label">${x}</div>`;
-    if(/^[（(][1-9][)）]/.test(x))return `<div class="study-subq">${x}</div>`;
-    if(/^[①②③④⑤⑥⑦⑧⑨]/.test(x))return `<div class="study-point">${x}</div>`;
-    return `<div class="study-paragraph">${x}</div>`;
-  }).join('');
-}
-function subjectiveReferenceText(item){
-  return item.reference||item.explanation||item.reference_candidate_clean||'';
+function hasReference(item){return !!(item?.reference_clean)}
+function hasAnswerScan(item){return !!item?.answer_scan}
+function hasAnswerCandidates(item){return Array.isArray(item?.answer_scan_candidates)&&item.answer_scan_candidates.length>0}
+function sourcePanelHTML(item){
+  const blocks=[];
+  if(item.is_material_question&&item.material_scan){
+    blocks.push(`<details class="scan-panel material-panel" open>
+      <summary>原册材料 / 题干</summary>
+      <div class="scan-note">材料题优先看原册，避免OCR漏字。图片已压缩，可点击浏览器放大查看。</div>
+      <img loading="lazy" src="${esc(item.material_scan)}" alt="原册材料页">
+    </details>`);
+  }
+  if(item.question_scan){
+    blocks.push(`<details class="scan-panel"><summary>查看原题扫描页</summary><img loading="lazy" src="${esc(item.question_scan)}" alt="原题扫描页"></details>`);
+  }
+  if(item.answer_scan){
+    blocks.push(`<details class="scan-panel answer-scan-panel"><summary>原册解析整页</summary><img loading="lazy" src="${esc(item.answer_scan)}" alt="原册解析页"></details>`);
+  }else if(hasAnswerCandidates(item)){
+    const imgs=item.answer_scan_candidates.map(x=>`<div class="candidate-page"><div class="candidate-label">解析册第${x.page}页</div><img loading="lazy" src="${esc(x.src)}" alt="解析候选页${x.page}"></div>`).join('');
+    blocks.push(`<details class="scan-panel answer-candidates-panel"><summary>查看解析候选页</summary><div class="scan-note">${esc(item.candidate_coverage_note||'未能唯一定位解析页，以下为高概率候选页。')}</div><div class="candidate-pages">${imgs}</div></details>`);
+  }
+  return blocks.join('');
 }
 function verificationLabel(item){
-  if(item.verification==='verified'||item.verification==='verified_direct')return '已校验';
-  if(item.verification==='high')return '高置信配对';
-  return '待进一步核对';
+  if(item.verification==='verified')return '人工核对';
+  if(item.verification==='source_text_verified')return '原文已核对';
+  if(item.verification==='source_verified')return '原册页已定位';
+  if(item.verification==='high')return '解析已配对';
+  if(item.answer_scan||item.answer_page)return '原册解析页已定位';
+  return '解析待配对';
 }
-
 function addQuestionWrong(item,selected=''){
   const p=questionPage(item)||{doc:item.q_doc||'d3',page:item.question_page||item.q_page||1,text:item.raw_question||item.question};
   const ans=canGradeQuestion(item)?`，正确答案 ${item.answer}`:'';
@@ -306,11 +310,11 @@ function questionMeta(item){
   return bits.filter(Boolean).join(' · ');
 }
 function renderStatusTags(item){
-  const v=item.verification==='pending'?'pending':'ok';
+  const v=(item.verification==='pending'&&!item.answer_page)?'pending':'ok';
   const oq=item.ocr_quality==='rough'?'rough':'';
   const arr=[
     `<span class="qtag ${v}">${esc(verificationLabel(item))}</span>`,
-    `<span class="qtag ${oq}">OCR ${item.ocr_quality==='good'?'较清晰':item.ocr_quality==='usable'?'可用':'较粗糙'}</span>`
+    `<span class="qtag ${oq}">OCR ${item.ocr_quality==='rechecked'?'二次识别':item.ocr_quality==='good'?'较清晰':item.ocr_quality==='usable'?'可用':'较粗糙'}</span>`
   ];
   if(item.options_complete&&isChoiceQuestion(item))arr.push('<span class="qtag ok">选项已拆分</span>');
   else if(isChoiceQuestion(item))arr.push('<span class="qtag pending">选项按原题显示</span>');
@@ -388,13 +392,14 @@ function renderQuiz(item){
   CURRENT_QUIZ=item;QUIZ_LOCKED=false;$('#quizCard').classList.remove('hidden');
   $('#quizTopic').textContent=questionMeta(item);
   $('#quizStatusLine').innerHTML=renderStatusTags(item);
-  $('#quizQuestion').innerHTML=formatStudyText(item.question);
+  $('#quizQuestion').textContent=item.question;
   $('#quizQuestion').classList.toggle('raw-choice',isChoiceQuestion(item)&&!item.options_complete);
   $('#quizFeedback').classList.add('hidden');$('#quizExplain').classList.add('hidden');
-  $('#quizExplainBody').innerHTML=formatStudyText(subjectiveReferenceText(item));
+  $('#quizExplainBody').textContent=isChoiceQuestion(item)?(item.explanation||item.reference||''):(item.reference_clean||'');
   $('#quizAddWrong').textContent='加入错题';
 
   if(isChoiceQuestion(item)){
+    $('#quizAddWrong').classList.remove('hidden');
     $('#quizOptions').classList.remove('hidden');
     $('#subjectiveArea').classList.add('hidden');
     $('#quizOptions').innerHTML=optionButtonsHTML(item);
@@ -410,18 +415,38 @@ function renderQuiz(item){
       if(item.explanation){$('#quizExplain').classList.remove('hidden')}
     });
   }else{
+    $('#quizAddWrong').classList.add('hidden');
     $('#quizOptions').classList.add('hidden');
     $('#subjectiveArea').classList.remove('hidden');
+    $('#subjectiveSourcePanel').innerHTML=sourcePanelHTML(item);
     $('#subjectiveAnswer').value='';
+
+    const ref=item.reference_clean||'';
     $('#subjectiveReference').classList.add('hidden');
-    $('#subjectiveReference').innerHTML=formatStudyText(subjectiveReferenceText(item));
-    $('#showSubjectiveRef').disabled=!subjectiveReferenceText(item);
-    $('#showSubjectiveRef').textContent=item.answer_available?'查看参考答案':(subjectiveReferenceText(item)?'查看OCR参考（未完全核验）':'暂无可用参考答案');
+    $('#subjectiveReference').textContent=ref;
+
+    const canText=!!ref;
+    const canScan=hasAnswerScan(item);
+    const canCandidates=hasAnswerCandidates(item);
+    $('#showSubjectiveRef').disabled=!(canText||canScan||canCandidates);
+    $('#showSubjectiveRef').textContent=canText?'查看整理后的参考答案':(canScan?'查看原册解析整页':(canCandidates?'查看解析候选页':'参考答案尚未可靠配对'));
+
     $('#showSubjectiveRef').onclick=()=>{
-      if(!subjectiveReferenceText(item))return;
-      $('#subjectiveReference').classList.toggle('hidden');
-      $('#quizExplain').classList.remove('hidden');
+      if(canText){
+        $('#subjectiveReference').classList.toggle('hidden');
+        $('#quizExplain').classList.remove('hidden');
+      }else if(canScan){
+        const panel=$('.answer-scan-panel',$('#subjectiveSourcePanel'));
+        if(panel){panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'start'});}
+      }else if(canCandidates){
+        const panel=$('.answer-candidates-panel',$('#subjectiveSourcePanel'));
+        if(panel){panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'start'});}
+      }
     };
+
+    $('#quizExplainBody').textContent=ref;
+    if(!canText)$('#quizExplain').classList.add('hidden');
+
     $('#subjectiveKnow').onclick=()=>toast('已标记：会了');
     $('#subjectiveWrong').onclick=()=>{
       if(addQuestionWrong(item,$('#subjectiveAnswer').value?'已作答':'未作答'))toast('已加入错题');
@@ -579,7 +604,7 @@ function renderWrong(){const arr=getJSON(WRONG_KEY).sort((a,b)=>b.created-a.crea
 function switchView(v){$$('.view').forEach(x=>x.classList.remove('active'));$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));$('#view-'+v).classList.add('active');if(v==='recall'){if(!CURRENT_RECALL)CURRENT_RECALL=makeRandomRecall();renderRecall()}if(v==='quiz'){rebuildQuizPool();if(!CURRENT_QUIZ||!QUIZ_POOL.some(q=>q.id===CURRENT_QUIZ.id))CURRENT_QUIZ=chooseRandomQuestion();renderQuiz(CURRENT_QUIZ)}if(v==='wrong')renderWrong();window.scrollTo({top:0})}
 async function clearOldCaches(){try{if('serviceWorker'in navigator){const regs=await navigator.serviceWorker.getRegistrations();for(const r of regs)await r.unregister()}if('caches'in window){const ks=await caches.keys();for(const k of ks)await caches.delete(k)}}catch{}}
 async function init(){
-  console.log('311背书助手 FINAL subjective-verified v2.2.0');
+  console.log('311背书助手 FINAL full-bank v2.3.0 GitHub-Lite');
   await clearOldCaches();
   try{
     [LIB,{items:KNOWLEDGE},{questions:QUESTIONS}]=await Promise.all([

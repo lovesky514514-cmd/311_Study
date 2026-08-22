@@ -1,0 +1,26 @@
+{
+  "version": "2.3.0",
+  "total_questions": 2726,
+  "subjective_questions": 619,
+  "exact_answer_scan": 225,
+  "candidate_answer_scan": 394,
+  "any_answer_source": 619,
+  "question_scan": 619,
+  "interpolation_audit": {
+    "应试题库": {
+      "known": 1157,
+      "median_abs_error": 0.2,
+      "within_1_page_pct": 98.2,
+      "within_3_pages_pct": 99.8,
+      "within_5_pages_pct": 99.9
+    },
+    "历年真题": {
+      "known": 576,
+      "median_abs_error": 0.0,
+      "within_1_page_pct": 91.0,
+      "within_3_pages_pct": 95.5,
+      "within_5_pages_pct": 96.0
+    }
+  },
+  "js_syntax": "PASS"
+}

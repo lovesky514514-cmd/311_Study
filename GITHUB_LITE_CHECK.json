@@ -1,0 +1,13 @@
+{
+  "version": "2.3.0-github-lite",
+  "shared_scan_files": 742,
+  "missing_scan_sources": 0,
+  "original_referenced_scan_mb": 87.2,
+  "compressed_shared_scan_mb": 29.1,
+  "image_reduction_pct": 66.6,
+  "all_scan_references_valid": true,
+  "javascript_syntax": "PASS",
+  "zip_mb": 31.9,
+  "zip_entries": 766,
+  "zip_integrity": "PASS"
+}

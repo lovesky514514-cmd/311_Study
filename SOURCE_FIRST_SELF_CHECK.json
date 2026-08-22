@@ -1,0 +1,20 @@
+{
+  "version": "2.2.0",
+  "total_questions": 2726,
+  "subjective_questions": 619,
+  "question_scan_available": 619,
+  "answer_scan_available": 225,
+  "clean_text_reference": 71,
+  "bad_ocr_references_hidden": 58,
+  "js_syntax": "PASS",
+  "sample_2008_q56": {
+    "subject": "中国教育史",
+    "has_full_material": true,
+    "names_correct": true,
+    "clean_reference": true,
+    "answer_scan": true,
+    "question_scan": true,
+    "verification": "source_text_verified",
+    "contains_latin_garbage": false
+  }
+}

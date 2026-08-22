@@ -1,24 +1,18 @@
 {
-  "version": "2.2.0-subjective-verified",
-  "question_total": 2726,
-  "subjective_total": 619,
-  "true_subjective_questions_reOCR_cleaned": 213,
-  "true_subjective_direct_verified": 18,
-  "testbank_subjective_direct_verified": 13,
-  "subjective_direct_verified_total": 131,
-  "subjective_with_reference": 151,
-  "subjective_pending": 381,
-  "true_subjective_multi_exam_marker_remaining": 13,
-  "example_2021_q54": {
-    "verification": "verified_direct",
-    "answer_page": 287,
-    "similarity": 0.911,
-    "question": "【2021 年 , 第 54 题】 阅读材料， 并按要求回答问题。\n材料大意 :《学会生存一教育世界的今天和明天》 中的教育公平。\n请回答 :\n(1) 概述材料中的教育公平观。\n(2) 分析材料中提出的实现教育公平的主张。\n(3) 阐述这种主张对我国教育改革的启发。",
-    "reference_available": true
-  },
   "js_syntax": "PASS",
-  "note": "直接校验=在原试题册与解析册中找到同年同题号（真题）或唯一知识点+本知识点题号（应试题库）。未满足唯一对应条件的条目仍保留待进一步核对，避免猜答案。",
-  "true_subjective_direct_verified_after_full_answer_scan": 116,
-  "true_subjective_clean_reference_rebuilt": 26,
-  "direct_verify_rule": "真题：解析册210-330页重新OCR，按年份+原题号检索，再以题干二元词重合度>=0.16消除同号333/311歧义。应试题库：知识点+本知识点题号唯一对应。"
+  "total_questions": 2726,
+  "subjective_questions": 619,
+  "subjective_texts_changed": 357,
+  "true_exam_pages_reocr_used": 171,
+  "obvious_cross_question_contamination_removed": 22,
+  "source_verified_total": 17,
+  "subjective_with_reference": 129,
+  "pending_total": 1347,
+  "sample_2021_q54": {
+    "verification": "source_verified",
+    "ocr_quality": "rechecked",
+    "question_has_2024_contamination": false,
+    "question_paragraphs": 8,
+    "reference_available": true
+  }
 }
