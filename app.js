@@ -231,11 +231,32 @@ function questionPage(item){
 function isChoiceQuestion(item){return item?.type==='choice'}
 function canGradeQuestion(item){return !!item?.answer_available && !!item?.answer && /^[ABCD]$/.test(item.answer)}
 function hasReference(item){return !!item?.answer_available && !!(item.reference||item.explanation)}
-function verificationLabel(item){
-  if(item.verification==='verified')return '人工核对';
-  if(item.verification==='high')return '高置信配对';
-  return '待校验';
+
+function formatStudyText(text){
+  const s=String(text||'').replace(/\r/g,'').trim();
+  if(!s)return '';
+  const escaped=esc(s);
+  const parts=escaped
+    .replace(/\n+/g,'\n')
+    .split(/\n|(?=(?:[（(][1-9][)）]))|(?=材料(?:大意)?[:：])|(?=请回答[:：]?)/)
+    .map(x=>x.trim()).filter(Boolean);
+  return parts.map(x=>{
+    if(/^材料(?:大意)?[:：]/.test(x))return `<div class="study-material">${x}</div>`;
+    if(/^请回答[:：]?/.test(x))return `<div class="study-label">${x}</div>`;
+    if(/^[（(][1-9][)）]/.test(x))return `<div class="study-subq">${x}</div>`;
+    if(/^[①②③④⑤⑥⑦⑧⑨]/.test(x))return `<div class="study-point">${x}</div>`;
+    return `<div class="study-paragraph">${x}</div>`;
+  }).join('');
 }
+function subjectiveReferenceText(item){
+  return item.reference||item.explanation||item.reference_candidate_clean||'';
+}
+function verificationLabel(item){
+  if(item.verification==='verified'||item.verification==='verified_direct')return '已校验';
+  if(item.verification==='high')return '高置信配对';
+  return '待进一步核对';
+}
+
 function addQuestionWrong(item,selected=''){
   const p=questionPage(item)||{doc:item.q_doc||'d3',page:item.question_page||item.q_page||1,text:item.raw_question||item.question};
   const ans=canGradeQuestion(item)?`，正确答案 ${item.answer}`:'';
@@ -367,10 +388,10 @@ function renderQuiz(item){
   CURRENT_QUIZ=item;QUIZ_LOCKED=false;$('#quizCard').classList.remove('hidden');
   $('#quizTopic').textContent=questionMeta(item);
   $('#quizStatusLine').innerHTML=renderStatusTags(item);
-  $('#quizQuestion').textContent=item.question;
+  $('#quizQuestion').innerHTML=formatStudyText(item.question);
   $('#quizQuestion').classList.toggle('raw-choice',isChoiceQuestion(item)&&!item.options_complete);
   $('#quizFeedback').classList.add('hidden');$('#quizExplain').classList.add('hidden');
-  $('#quizExplainBody').textContent=item.explanation||item.reference||'';
+  $('#quizExplainBody').innerHTML=formatStudyText(subjectiveReferenceText(item));
   $('#quizAddWrong').textContent='加入错题';
 
   if(isChoiceQuestion(item)){
@@ -393,11 +414,11 @@ function renderQuiz(item){
     $('#subjectiveArea').classList.remove('hidden');
     $('#subjectiveAnswer').value='';
     $('#subjectiveReference').classList.add('hidden');
-    $('#subjectiveReference').textContent=item.reference||item.explanation||'';
-    $('#showSubjectiveRef').disabled=!hasReference(item);
-    $('#showSubjectiveRef').textContent=hasReference(item)?'查看参考答案':'参考答案待校验';
+    $('#subjectiveReference').innerHTML=formatStudyText(subjectiveReferenceText(item));
+    $('#showSubjectiveRef').disabled=!subjectiveReferenceText(item);
+    $('#showSubjectiveRef').textContent=item.answer_available?'查看参考答案':(subjectiveReferenceText(item)?'查看OCR参考（未完全核验）':'暂无可用参考答案');
     $('#showSubjectiveRef').onclick=()=>{
-      if(!hasReference(item))return;
+      if(!subjectiveReferenceText(item))return;
       $('#subjectiveReference').classList.toggle('hidden');
       $('#quizExplain').classList.remove('hidden');
     };
@@ -558,7 +579,7 @@ function renderWrong(){const arr=getJSON(WRONG_KEY).sort((a,b)=>b.created-a.crea
 function switchView(v){$$('.view').forEach(x=>x.classList.remove('active'));$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));$('#view-'+v).classList.add('active');if(v==='recall'){if(!CURRENT_RECALL)CURRENT_RECALL=makeRandomRecall();renderRecall()}if(v==='quiz'){rebuildQuizPool();if(!CURRENT_QUIZ||!QUIZ_POOL.some(q=>q.id===CURRENT_QUIZ.id))CURRENT_QUIZ=chooseRandomQuestion();renderQuiz(CURRENT_QUIZ)}if(v==='wrong')renderWrong();window.scrollTo({top:0})}
 async function clearOldCaches(){try{if('serviceWorker'in navigator){const regs=await navigator.serviceWorker.getRegistrations();for(const r of regs)await r.unregister()}if('caches'in window){const ks=await caches.keys();for(const k of ks)await caches.delete(k)}}catch{}}
 async function init(){
-  console.log('311背书助手 FINAL full-bank v2.0.0');
+  console.log('311背书助手 FINAL subjective-verified v2.2.0');
   await clearOldCaches();
   try{
     [LIB,{items:KNOWLEDGE},{questions:QUESTIONS}]=await Promise.all([

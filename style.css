@@ -111,3 +111,14 @@ main{width:min(920px,calc(100% - 28px));margin:0 auto 50px;padding-top:80px;min-
   .quiz-filterbar{grid-template-columns:1fr 1fr}
   .quiz-filterbar button{grid-column:1 / -1}
 }
+
+/* Subjective-question readability */
+.quiz-question{white-space:normal!important;line-height:1.85}
+.study-paragraph{margin:0 0 10px;line-height:1.85;font-weight:500}
+.study-material{margin:12px 0;padding:11px 13px;background:#f8fafc;border-left:3px solid #b9c9db;line-height:1.85;font-weight:400}
+.study-label{margin:14px 0 7px;font-weight:700;color:#3e4854}
+.study-subq{margin:8px 0 8px 18px;line-height:1.8;font-weight:600}
+.study-point{margin:6px 0 6px 12px;line-height:1.75}
+.subjective-area .source,.quiz-card .source{white-space:normal!important;line-height:1.8}
+#quizExplainBody .study-paragraph,#quizExplainBody .study-point,#subjectiveReference .study-paragraph,#subjectiveReference .study-point{font-weight:400}
+@media(max-width:620px){.study-subq{margin-left:7px}.study-material{padding:9px 10px}}
