@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="stylesheet" href="./style.css?v=1.5.1-final">
+<link rel="stylesheet" href="./style.css?v=2.0.0-full">
 </head>
 <body>
 <header class="fixed-header">
@@ -79,12 +79,57 @@
       <b>刷题</b>
       <div class="quiz-head-actions"><span id="quizCount" class="meta"></span><button id="randomQuiz" class="link">随机一题</button></div>
     </div>
+
+    <div class="quiz-filterbar">
+      <select id="quizSource" aria-label="来源">
+        <option value="">全部来源</option>
+        <option value="应试题库">应试题库</option>
+        <option value="历年真题">历年真题</option>
+      </select>
+      <select id="quizSubject" aria-label="科目">
+        <option value="">全部科目</option>
+        <option value="中国教育史">中国教育史</option>
+        <option value="外国教育史">外国教育史</option>
+        <option value="教育心理学">教育心理学</option>
+        <option value="教育学原理">教育学原理</option>
+        <option value="教育研究方法">教育研究方法</option>
+      </select>
+      <select id="quizType" aria-label="题型">
+        <option value="">全部题型</option>
+        <option value="choice">选择题</option>
+        <option value="judgment">辨析题</option>
+        <option value="short">简答题</option>
+        <option value="essay">论述/材料题</option>
+        <option value="subjective">其他主观题</option>
+      </select>
+      <select id="quizStatus" aria-label="校验状态">
+        <option value="">全部状态</option>
+        <option value="gradeable">可判分/有参考答案</option>
+        <option value="pending">待校验</option>
+      </select>
+      <input id="quizKeyword" type="search" placeholder="搜题干 / 年份 / 知识点">
+      <button id="applyQuizFilter" class="minor">筛选</button>
+    </div>
+    <div id="quizPoolMeta" class="quiz-pool-meta"></div>
+
     <article id="quizCard" class="quiz-card">
       <div id="quizTopic" class="meta"></div>
+      <div id="quizStatusLine" class="quiz-status-line"></div>
       <div id="quizQuestion" class="quiz-question"></div>
       <div id="quizOptions" class="quiz-options"></div>
+
+      <div id="subjectiveArea" class="subjective-area hidden">
+        <textarea id="subjectiveAnswer" rows="8" placeholder="先自己写答题要点，再看参考答案"></textarea>
+        <div class="subjective-actions">
+          <button id="showSubjectiveRef" class="minor">查看参考答案</button>
+          <button id="subjectiveKnow" class="minor">我会了</button>
+          <button id="subjectiveWrong" class="minor">加入错题</button>
+        </div>
+        <div id="subjectiveReference" class="source hidden"></div>
+      </div>
+
       <div id="quizFeedback" class="quiz-feedback hidden"></div>
-      <details id="quizExplain" class="explain hidden"><summary>解析</summary><div id="quizExplainBody"></div></details>
+      <details id="quizExplain" class="explain hidden"><summary>解析 / 参考答案</summary><div id="quizExplainBody"></div></details>
       <div class="quiz-actions">
         <button id="nextQuiz" class="primary">下一题</button>
         <button id="quizAddWrong" class="minor">加入错题</button>
@@ -99,6 +144,6 @@
 </main>
 
 <div id="toast" class="toast"></div>
-<script src="./app.js?v=1.5.1-final"></script>
+<script src="./app.js?v=2.0.0-full"></script>
 </body>
 </html>
