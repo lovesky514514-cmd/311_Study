@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="stylesheet" href="./style.css?v=1.2.5">
+<link rel="stylesheet" href="./style.css?v=1.4.0">
 </head>
 <body>
 <header class="fixed-header">
@@ -18,6 +18,7 @@
     <nav>
       <button class="tab active" data-view="ask">问答</button>
       <button class="tab" data-view="recall">背诵</button>
+      <button class="tab" data-view="quiz">刷题</button>
       <button class="tab" data-view="wrong">错题</button>
     </nav>
   </div>
@@ -38,6 +39,7 @@
     <section id="answerBox" class="answer hidden">
       <div class="answer-title">回答</div>
       <ol id="answerList"></ol>
+      <div id="answerQuiz" class="inline-quiz hidden"></div>
       <details id="answerExplain" class="explain hidden">
         <summary>AI解释</summary>
         <div id="answerExplainBody"></div>
@@ -70,6 +72,25 @@
     <div id="recallList" class="mini-list"></div>
   </section>
 
+
+  <section id="view-quiz" class="view">
+    <div class="simple-head">
+      <b>刷题</b>
+      <div class="quiz-head-actions"><span id="quizCount" class="meta"></span><button id="randomQuiz" class="link">随机一题</button></div>
+    </div>
+    <article id="quizCard" class="quiz-card">
+      <div id="quizTopic" class="meta"></div>
+      <div id="quizQuestion" class="quiz-question"></div>
+      <div id="quizOptions" class="quiz-options"></div>
+      <div id="quizFeedback" class="quiz-feedback hidden"></div>
+      <details id="quizExplain" class="explain hidden"><summary>解析</summary><div id="quizExplainBody"></div></details>
+      <div class="quiz-actions">
+        <button id="nextQuiz" class="primary">下一题</button>
+        <button id="quizAddWrong" class="minor">加入错题</button>
+      </div>
+    </article>
+  </section>
+
   <section id="view-wrong" class="view">
     <div class="simple-head"><b>错题</b><button id="clearWrong" class="link danger">清空</button></div>
     <div id="wrongList" class="wrong-list"></div>
@@ -77,6 +98,6 @@
 </main>
 
 <div id="toast" class="toast"></div>
-<script src="./app.js?v=1.2.5"></script>
+<script src="./app.js?v=1.4.0"></script>
 </body>
 </html>

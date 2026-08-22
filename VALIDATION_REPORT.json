@@ -1,13 +1,48 @@
 {
-  "version": "1.2.5",
-  "validation": {
-    "knowledge_alias_queries": "209/210 Top1; 210/210 Top5",
-    "curated_page_hit": "208/210 Top1; 210/210 Top5",
-    "out_of_domain_block": "30/30",
-    "rare_311_terms": "7/7",
-    "source_backed_spot_checks": "16/16",
-    "five_known_question_answers": "5/5 (C/D/C/D/A)",
-    "javascript_syntax": "PASS"
+  "version": "1.4.0",
+  "scope": {
+    "ocr_pages": 1642,
+    "curated_knowledge_entries": 104,
+    "structured_mcq": 17
   },
-  "important_note": "These are retrieval and audited-question regression tests, not a claim of 100% OCR character accuracy."
+  "accuracy_validation": {
+    "knowledge_queries_tested": 335,
+    "knowledge_target_page_top1": "324/335 (96.7%)",
+    "knowledge_target_page_top5": "335/335 (100.0%)",
+    "structured_question_answer_tests": "34/34 (100%)",
+    "out_of_domain_block": "30/30 (100%)",
+    "quiz_grading_logic": "PASS",
+    "knowledge_source_page_mapping": "104/104",
+    "raw_ocr_source_page_lexical_confirmation": "98/104",
+    "recall_prompt_integrity": "104/104",
+    "mcq_option_integrity": "17/17"
+  },
+  "ocr_quality_audit": {
+    "mean_quality": 0.843,
+    "median_quality": 0.879,
+    "very_low_quality_pages_below_0_38": 29,
+    "ranking_policy": "low-quality raw OCR pages are down-ranked/filtered unless exact or curated evidence exists"
+  },
+  "ui_checks": {
+    "quiz_tab": true,
+    "quiz_option_buttons": true,
+    "correct_green": true,
+    "wrong_red": true,
+    "auto_wrong": true,
+    "inline_search_quiz": true,
+    "random_recall": true,
+    "wrong_book": true,
+    "fixed_header": true
+  },
+  "http_smoke": {
+    "index.html": 200,
+    "style.css": 200,
+    "app.js": 200,
+    "data/library.json": 200,
+    "data/knowledge.json": 200,
+    "data/questions.json": 200,
+    "data/verification.json": 200,
+    "favicon.ico": 200
+  },
+  "important_note": "96%+ is the measured retrieval target-page Top1 rate over curated-name/alias queries, not the OCR character accuracy of all scanned pages."
 }
