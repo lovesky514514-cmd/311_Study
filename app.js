@@ -1,7 +1,7 @@
 const DATA_URL='./data/library.json';
 const KNOWLEDGE_URL='./data/knowledge.json';
 const QUESTIONS_URL='./data/questions.json';
-const RECALL_KEY='study311_recall_final_v1',WRONG_KEY='study311_wrong_final_v1';
+const RECALL_KEY='study311_recall_final_v1',WRONG_KEY='study311_wrong_final_v1',CLOZE_STATS_KEY='study311_cloze_stats_v1';
 let LIB={docs:[],pages:[]},KNOWLEDGE=[],QUESTIONS=[],CURRENT=[],CURRENT_RECALL=null,CURRENT_QUIZ=null,QUIZ_LOCKED=false;
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -99,44 +99,54 @@ function searchQuery(q){
 function search(){const q=$('#question').value.trim();if(!q)return;CURRENT=searchQuery(q);render(q,CURRENT)}
 function wrongExists(q,p){return getJSON(WRONG_KEY).some(x=>x.doc===p.doc&&x.page===p.page&&norm(x.q||'')===norm(q||''))}
 function addWrong(q,p,note=''){const arr=getJSON(WRONG_KEY);if(arr.some(x=>x.doc===p.doc&&x.page===p.page&&norm(x.q||'')===norm(q||''))){toast('已经在错题里');return false}arr.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),q:q||'知识点',doc:p.doc,page:p.page,text:p.text,note,created:Date.now()});saveJSON(WRONG_KEY,arr);toast('已加入错题');return true}
-function keywordCandidates(q,p){
-  const k=knowledgeMatches(q).find(m=>m.k.doc===p.doc&&m.k.page===p.page)?.k;
-  if(k)return [...new Set(k.words||[])].slice(0,4);
-
-  const set=new Set();
-  const source=p.curated_text||p.text||'';
-  for(const x of [...expand(q),...seg(q)]){
-    if(x.length>=2&&source.includes(x))set.add(x);
-  }
-  return [...set].sort((a,b)=>b.length-a.length).slice(0,4);
+function getClozeStats(){return getJSON(CLOZE_STATS_KEY,{})}
+function saveClozeStats(x){localStorage.setItem(CLOZE_STATS_KEY,JSON.stringify(x))}
+function knowledgeForRecall(q,p){
+  const km=knowledgeMatches(q);
+  return km.find(m=>m.k.doc===p.doc&&m.k.page===p.page)?.k||km[0]?.k||null;
+}
+function chooseClozeVariant(k,forceDifferentId=null){
+  const vs=(k?.cloze_variants||[]);
+  if(!vs.length)return null;
+  const st=getClozeStats()[k.name]||{attempts:0,correct:0,streak:0};
+  let weights;
+  if(st.attempts===0)weights=[.55,.35,.10];
+  else if(st.streak<=0)weights=[.72,.23,.05];
+  else if(st.streak<=2)weights=[.42,.43,.15];
+  else if(st.streak<=4)weights=[.22,.48,.30];
+  else weights=[.10,.35,.55];
+  let pool=vs.map((v,i)=>({v,w:weights[Math.min(i,weights.length-1)]||.1}));
+  if(forceDifferentId&&pool.length>1){const alt=pool.filter(x=>x.v.id!==forceDifferentId);if(alt.length)pool=alt}
+  const total=pool.reduce((a,x)=>a+x.w,0);let r=Math.random()*total;
+  for(const x of pool){r-=x.w;if(r<=0)return x.v}
+  return pool[pool.length-1].v;
+}
+function updateClozeStats(name,good){
+  if(!name)return;
+  const all=getClozeStats(),s=all[name]||{attempts:0,correct:0,streak:0};
+  s.attempts++;if(good){s.correct++;s.streak++}else{s.streak=0}
+  all[name]=s;saveClozeStats(all);
+}
+function legacySafeVariant(q,p){
+  const words=[...new Set([...expand(q),...seg(q)].filter(x=>x.length>=2&&String(p.text||'').includes(x)))];
+  if(!words.length)return null;
+  const a=words.sort((x,y)=>y.length-x.length)[0];
+  const prompt=bestExcerpt(q,p.text);
+  if(!prompt.includes(a))return null;
+  return {id:'legacy-safe',level:1,label:'基础',text:prompt.replace(a,'【空1】'),answers:[a],kind:'detail'};
 }
 function addRecall(q,p){
-  const k=knowledgeMatches(q).find(m=>m.k.doc===p.doc&&m.k.page===p.page)?.k;
-  const prompt=k?.prompt||displayExcerpt(q,p);
-  let words=(k?.words||keywordCandidates(q,p)).filter(w=>prompt.includes(w)).slice(0,4);
-
-  if(!words.length){
-    toast('这条资料没有合适的挖空词');
-    return false;
-  }
-
+  const k=knowledgeForRecall(q,p);
+  const v=k?chooseClozeVariant(k):legacySafeVariant(q,p);
+  if(!v){toast('这条资料没有合适的挖空内容');return false}
   const item={
     id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-    q:q||k?.name||words[0],
-    doc:p.doc,page:p.page,
-    text:k?.prompt||p.curated_text||p.text,
-    prompt,
-    words:[...new Set(words)],
-    created:Date.now()
+    q:k?.name||q,knowledgeName:k?.name||null,doc:p.doc,page:p.page,
+    text:k?.prompt||p.curated_text||p.text,created:Date.now(),variantId:v.id
   };
   const arr=getJSON(RECALL_KEY);
-  if(!arr.some(x=>x.doc===item.doc&&x.page===item.page&&JSON.stringify(x.words)===JSON.stringify(item.words))){
-    arr.push(item);
-    saveJSON(RECALL_KEY,arr);
-  }
-  CURRENT_RECALL=item;
-  toast('已加入背诵');
-  return true;
+  if(!arr.some(x=>x.knowledgeName&&x.knowledgeName===item.knowledgeName)||!item.knowledgeName){arr.push(item);saveJSON(RECALL_KEY,arr)}
+  CURRENT_RECALL={...item,cloze:v};toast('已加入背诵');return true;
 }
 function structuredQuestion(q){
   const nq=norm(q).replace(/正确答案|答案是什么|答案|是什么|请问/g,'');
@@ -390,14 +400,75 @@ function randomKnowledge(){
     window.scrollTo({top:58,behavior:'smooth'});
   });
 }
-function makeRandomRecall(){const randomPool=KNOWLEDGE.filter(k=>k.random!==false);if(!randomPool.length)return null;for(let tries=0;tries<40;tries++){const k=randomPool[Math.floor(Math.random()*randomPool.length)],p=findPage(k.doc,k.page);if(!p)continue;let prompt=k.prompt||bestExcerpt(k.name,p.text);let words=(k.words||[]).filter(w=>prompt.includes(w)).slice(0,4);if(!words.length)continue;return {id:'random-'+Date.now().toString(36),q:k.name,doc:p.doc,page:p.page,text:p.text,prompt,words,created:Date.now(),ephemeral:true}}return null}
-function renderRecall(){const saved=getJSON(RECALL_KEY);if(!CURRENT_RECALL)CURRENT_RECALL=saved[0]||makeRandomRecall();if(!CURRENT_RECALL){$('#recallEmpty').classList.remove('hidden');$('#recallCard').classList.add('hidden');return}const r=CURRENT_RECALL;$('#recallEmpty').classList.add('hidden');$('#recallCard').classList.remove('hidden');$('#recallSource').textContent=`${r.ephemeral?'随机 · ':''}${docName(r.doc)} · 第${r.page}页`;let prompt=r.prompt||bestExcerpt(r.q,r.text);const words=(r.words||[]).filter(w=>prompt.includes(w));if(!words.length){CURRENT_RECALL=makeRandomRecall();return renderRecall()}r.words=words;r.prompt=prompt;for(let i=0;i<r.words.length;i++)prompt=prompt.replace(r.words[i],`【空${i+1}】`);$('#recallPrompt').textContent=prompt;$('#recallInputs').innerHTML=r.words.map((w,i)=>`<div class="fill"><label>空${i+1}</label><input data-i="${i}" autocomplete="off" placeholder="输入答案"></div>`).join('');$('#recallFeedback').classList.add('hidden');$('#recallAnswer').classList.add('hidden');$('#recallAnswer').textContent=r.words.map((w,i)=>`空${i+1}：${w}`).join('\n');$('#recallExplain').innerHTML=explainHTML(r.q,{text:r.text});$('#deleteRecall').textContent=r.ephemeral?'下一题':'删除';$('#recallList').innerHTML=saved.length?saved.map(x=>`<div class="mini"><span>${esc(docName(x.doc))} · 第${x.page}页 · ${esc((x.words||[]).join(' / '))}</span><button data-id="${x.id}">练习</button></div>`).join(''):'<div class="mini"><span>当前为随机练习</span></div>';$$('#recallList button').forEach(b=>b.onclick=()=>{CURRENT_RECALL=saved.find(x=>x.id===b.dataset.id);renderRecall()})}
-function checkRecall(){if(!CURRENT_RECALL)return;let ok=0;$$('#recallInputs input').forEach(inp=>{const good=norm(inp.value)===norm(CURRENT_RECALL.words[+inp.dataset.i]);inp.classList.toggle('good',good);inp.classList.toggle('bad',!good);if(good)ok++});const e=$('#recallFeedback');e.classList.remove('hidden');e.className='feedback '+(ok===CURRENT_RECALL.words.length?'good':'bad');e.textContent=ok===CURRENT_RECALL.words.length?`全部正确 ${ok}/${CURRENT_RECALL.words.length}`:`答对 ${ok}/${CURRENT_RECALL.words.length}`}
+function makeRandomRecall(){
+  const pool=KNOWLEDGE.filter(k=>k.random!==false&&(k.cloze_variants||[]).length);
+  if(!pool.length)return null;
+  for(let tries=0;tries<50;tries++){
+    const k=pool[Math.floor(Math.random()*pool.length)],p=findPage(k.doc,k.page);
+    if(!p)continue;
+    const v=chooseClozeVariant(k);
+    if(!v)continue;
+    return {id:'random-'+Date.now().toString(36),q:k.name,knowledgeName:k.name,doc:p.doc,page:p.page,text:k.prompt,created:Date.now(),ephemeral:true,cloze:v};
+  }
+  return null;
+}
+function resolveRecallCloze(r,forceDifferent=false){
+  if(!r)return null;
+  if(r.knowledgeName){
+    const k=KNOWLEDGE.find(x=>x.name===r.knowledgeName);
+    if(k){
+      const prev=r.cloze?.id||r.variantId||null;
+      const v=chooseClozeVariant(k,forceDifferent?prev:null);
+      r.cloze=v;r.variantId=v?.id||null;r.text=k.prompt;r.q=k.name;
+      return v;
+    }
+  }
+  if(r.cloze)return r.cloze;
+  const p=findPage(r.doc,r.page)||{text:r.text||''};
+  return legacySafeVariant(r.q||'',p);
+}
+function renderRecall(forceDifferent=false){
+  const saved=getJSON(RECALL_KEY);
+  if(!CURRENT_RECALL)CURRENT_RECALL=saved[0]||makeRandomRecall();
+  if(!CURRENT_RECALL){$('#recallEmpty').classList.remove('hidden');$('#recallCard').classList.add('hidden');return}
+  const r=CURRENT_RECALL,v=resolveRecallCloze(r,forceDifferent);
+  if(!v){CURRENT_RECALL=makeRandomRecall();return renderRecall()}
+  $('#recallEmpty').classList.add('hidden');$('#recallCard').classList.remove('hidden');
+  const topicHint=v.kind==='reverse'?'':`${r.knowledgeName||r.q} · `;$('#recallSource').textContent=`${r.ephemeral?'随机 · ':''}${topicHint}${docName(r.doc)} · 第${r.page}页 · ${v.label} · ${v.answers.length}空`;
+  $('#recallPrompt').textContent=v.text;
+  $('#recallInputs').innerHTML=v.answers.map((w,i)=>`<div class="fill"><label>空${i+1}</label><input data-i="${i}" autocomplete="off" placeholder="输入答案"></div>`).join('');
+  $('#recallFeedback').classList.add('hidden');$('#recallAnswer').classList.add('hidden');
+  $('#recallAnswer').textContent=v.answers.map((w,i)=>`空${i+1}：${w}`).join('\n');
+  const k=r.knowledgeName?KNOWLEDGE.find(x=>x.name===r.knowledgeName):null;
+  $('#recallExplain').innerHTML=k?`<ol>${cleanPromptPoints(k.prompt).map(x=>`<li>${esc(x)}</li>`).join('')}</ol>`:explainHTML(r.q,{text:r.text});
+  $('#deleteRecall').textContent=r.ephemeral?'下一题':'删除';
+  $('#recallList').innerHTML=saved.length?saved.map(x=>`<div class="mini"><span>${esc(x.knowledgeName||x.q||docName(x.doc))}</span><button data-id="${x.id}">练习</button></div>`).join(''):'<div class="mini"><span>当前为随机练习</span></div>';
+  $$('#recallList button').forEach(b=>b.onclick=()=>{CURRENT_RECALL=saved.find(x=>x.id===b.dataset.id);renderRecall(true)});
+}
+function checkRecall(){
+  if(!CURRENT_RECALL)return;
+  const v=CURRENT_RECALL.cloze||resolveRecallCloze(CURRENT_RECALL);if(!v)return;
+  let ok=0;
+  $$('#recallInputs input').forEach(inp=>{const good=norm(inp.value)===norm(v.answers[+inp.dataset.i]);inp.classList.toggle('good',good);inp.classList.toggle('bad',!good);if(good)ok++});
+  const allGood=ok===v.answers.length;updateClozeStats(CURRENT_RECALL.knowledgeName,allGood);
+  const e=$('#recallFeedback');e.classList.remove('hidden');e.className='feedback '+(allGood?'good':'bad');
+  const st=CURRENT_RECALL.knowledgeName?getClozeStats()[CURRENT_RECALL.knowledgeName]:null;
+  e.textContent=allGood?`全部正确 ${ok}/${v.answers.length}${st?` · 连对 ${st.streak}`:''}`:`答对 ${ok}/${v.answers.length} · 下一次会自动降低挖空难度`;
+}
 function randomRecall(){CURRENT_RECALL=makeRandomRecall();renderRecall()}
-function deleteRecall(){if(!CURRENT_RECALL)return;if(CURRENT_RECALL.ephemeral)return randomRecall();saveJSON(RECALL_KEY,getJSON(RECALL_KEY).filter(x=>x.id!==CURRENT_RECALL.id));CURRENT_RECALL=null;renderRecall()}
-function recallWrong(){if(!CURRENT_RECALL)return;addWrong(CURRENT_RECALL.q,{doc:CURRENT_RECALL.doc,page:CURRENT_RECALL.page,text:CURRENT_RECALL.text},`背诵：${(CURRENT_RECALL.words||[]).join(' / ')}`);renderWrong()}
+function deleteRecall(){
+  if(!CURRENT_RECALL)return;
+  if(CURRENT_RECALL.ephemeral)return randomRecall();
+  saveJSON(RECALL_KEY,getJSON(RECALL_KEY).filter(x=>x.id!==CURRENT_RECALL.id));CURRENT_RECALL=null;renderRecall();
+}
+function recallWrong(){
+  if(!CURRENT_RECALL)return;
+  const v=CURRENT_RECALL.cloze||resolveRecallCloze(CURRENT_RECALL);
+  addWrong(CURRENT_RECALL.q,{doc:CURRENT_RECALL.doc,page:CURRENT_RECALL.page,text:CURRENT_RECALL.text},`背诵：${(v?.answers||[]).join(' / ')}`);renderWrong();
+}
+
 function renderWrong(){const arr=getJSON(WRONG_KEY).sort((a,b)=>b.created-a.created),root=$('#wrongList');if(!arr.length){root.innerHTML='<div class="empty">暂无内容</div>';return}root.innerHTML=arr.map(w=>`<details class="wrong" data-id="${w.id}"><summary><div><b>${esc(w.q||'知识点')}</b><div class="meta">${esc(docName(w.doc))} · 第${w.page}页</div></div><span class="meta">展开</span></summary><div class="wrong-body">${w.note?`<div class="wrong-note">${esc(w.note)}</div>`:''}<div class="source">${esc(displayExcerpt(w.q,findPage(w.doc,w.page)||{text:w.text}))}</div><details class="explain"><summary>AI解释</summary><div>${explainHTML(w.q,{text:w.text})}</div></details><div class="actions"><button class="link danger del">删除</button></div></div></details>`).join('');$$('.wrong',root).forEach(el=>$('.del',el).onclick=()=>{saveJSON(WRONG_KEY,getJSON(WRONG_KEY).filter(x=>x.id!==el.dataset.id));renderWrong()})}
 function switchView(v){$$('.view').forEach(x=>x.classList.remove('active'));$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));$('#view-'+v).classList.add('active');if(v==='recall'){if(!CURRENT_RECALL)CURRENT_RECALL=makeRandomRecall();renderRecall()}if(v==='quiz'){if(!CURRENT_QUIZ)CURRENT_QUIZ=chooseRandomQuestion();renderQuiz(CURRENT_QUIZ)}if(v==='wrong')renderWrong();window.scrollTo({top:0})}
 async function clearOldCaches(){try{if('serviceWorker'in navigator){const regs=await navigator.serviceWorker.getRegistrations();for(const r of regs)await r.unregister()}if('caches'in window){const ks=await caches.keys();for(const k of ks)await caches.delete(k)}}catch{}}
-async function init(){console.log('311背书助手 v1.4.0');await clearOldCaches();try{[LIB,{items:KNOWLEDGE},{questions:QUESTIONS}]=await Promise.all([fetch(DATA_URL,{cache:'no-store'}).then(r=>r.json()),fetch(KNOWLEDGE_URL,{cache:'no-store'}).then(r=>r.json()),fetch(QUESTIONS_URL,{cache:'no-store'}).then(r=>r.json())])}catch(e){$('#answerBox').classList.remove('hidden');$('#answerList').innerHTML='<li>资料加载失败</li>';return}LIB.pages.forEach(p=>{p.n=norm(pageSearchText(p))});$('#askBtn').onclick=search;$('#question').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();search()}};$$('.tab').forEach(b=>b.onclick=()=>switchView(b.dataset.view));$('#refreshKnowledge').onclick=randomKnowledge;$('#checkRecall').onclick=checkRecall;$('#showRecall').onclick=()=>$('#recallAnswer').classList.toggle('hidden');$('#recallWrong').onclick=recallWrong;$('#deleteRecall').onclick=deleteRecall;$('#randomRecall').onclick=randomRecall;$('#randomQuiz').onclick=nextQuiz;$('#nextQuiz').onclick=nextQuiz;$('#quizAddWrong').onclick=()=>{if(CURRENT_QUIZ&&addQuestionWrong(CURRENT_QUIZ)){toast('已加入错题');$('#quizAddWrong').textContent='已加入错题'}};$('#quizCount').textContent=`题库 ${QUESTIONS.length} 题`;$('#clearWrong').onclick=()=>{if(confirm('清空错题？')){saveJSON(WRONG_KEY,[]);renderWrong()}};randomKnowledge();renderWrong()}
+async function init(){console.log('311背书助手 FINAL cloze v1.5.1');await clearOldCaches();try{[LIB,{items:KNOWLEDGE},{questions:QUESTIONS}]=await Promise.all([fetch(DATA_URL,{cache:'no-store'}).then(r=>r.json()),fetch(KNOWLEDGE_URL,{cache:'no-store'}).then(r=>r.json()),fetch(QUESTIONS_URL,{cache:'no-store'}).then(r=>r.json())])}catch(e){$('#answerBox').classList.remove('hidden');$('#answerList').innerHTML='<li>资料加载失败</li>';return}LIB.pages.forEach(p=>{p.n=norm(pageSearchText(p))});$('#askBtn').onclick=search;$('#question').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();search()}};$$('.tab').forEach(b=>b.onclick=()=>switchView(b.dataset.view));$('#refreshKnowledge').onclick=randomKnowledge;$('#checkRecall').onclick=checkRecall;$('#showRecall').onclick=()=>$('#recallAnswer').classList.toggle('hidden');$('#alternateRecall').onclick=()=>renderRecall(true);$('#recallWrong').onclick=recallWrong;$('#deleteRecall').onclick=deleteRecall;$('#randomRecall').onclick=randomRecall;$('#randomQuiz').onclick=nextQuiz;$('#nextQuiz').onclick=nextQuiz;$('#quizAddWrong').onclick=()=>{if(CURRENT_QUIZ&&addQuestionWrong(CURRENT_QUIZ)){toast('已加入错题');$('#quizAddWrong').textContent='已加入错题'}};$('#quizCount').textContent=`题库 ${QUESTIONS.length} 题`;$('#clearWrong').onclick=()=>{if(confirm('清空错题？')){saveJSON(WRONG_KEY,[]);renderWrong()}};randomKnowledge();renderWrong()}
 init();
